@@ -284,11 +284,7 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
           <div>• Max total: {formatFileSize(MAX_TOTAL_SIZE_BYTES)}</div>
           <div>• Max per file: {formatFileSize(MAX_INDIVIDUAL_SIZE_BYTES)}</div>
         </div>
-        <div className="mt-2 pt-2 border-t border-border">
-          <p className="text-xs text-muted-foreground">
-            <strong>Supported formats:</strong> PDF documents, text files (TXT, MD), images (PNG, JPG, WEBP), audio (MP3, WAV), video (MP4)
-          </p>
-        </div>
+        
         {isPremium && (
           <div className="mt-2 pt-2 border-t border-yellow-200 dark:border-yellow-800">
             <div className="text-xs text-yellow-600 dark:text-yellow-400">
