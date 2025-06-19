@@ -4,7 +4,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { Button } from '../ui/Button';
 import { ThemeToggle } from '../ui/ThemeToggle';
 import { FeedbackModal } from '../feedback/FeedbackModal';
-import { Brain, Menu, X, UserPlus, MessageSquare, Settings, User } from 'lucide-react';
+import { Brain, Menu, X, UserPlus, MessageSquare, Settings, User, LogOut, ChevronDown } from 'lucide-react';
 
 export const Navbar: React.FC = () => {
   const { user, signOut, isAnonymous } = useAuth();
@@ -29,21 +29,24 @@ export const Navbar: React.FC = () => {
   });
 
   const handleSignOut = async () => {
+    setShowProfileMenu(false);
     await signOut();
     navigate('/');
   };
 
-  const isActivePath = (path: string) => {
-    return location.pathname === path;
-  };
-
-  const handleProfileMenuClick = (action: 'settings' | 'feedback') => {
+  const handleProfileMenuClick = (action: 'settings' | 'feedback' | 'signout') => {
     setShowProfileMenu(false);
     if (action === 'settings') {
       navigate('/settings');
     } else if (action === 'feedback') {
       setShowFeedbackModal(true);
+    } else if (action === 'signout') {
+      handleSignOut();
     }
+  };
+
+  const isActivePath = (path: string) => {
+    return location.pathname === path;
   };
 
   return (
@@ -138,19 +141,11 @@ export const Navbar: React.FC = () => {
                       </div>
                     ) : (
                       <>
-                        <Button 
-                          variant="ghost" 
-                          onClick={handleSignOut}
-                          className="text-muted-foreground hover:text-card-foreground hover:bg-muted"
-                        >
-                          Sign Out
-                        </Button>
-                        
-                        {/* Profile Avatar with Dropdown */}
+                        {/* Enhanced Profile Avatar with Dropdown */}
                         <div className="relative">
                           <button
                             onClick={() => setShowProfileMenu(!showProfileMenu)}
-                            className="flex items-center space-x-3 p-2 rounded-lg hover:bg-muted transition-colors"
+                            className="flex items-center space-x-3 p-2 rounded-lg hover:bg-muted transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
                           >
                             <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
                               <span className="text-sm font-medium text-primary">
@@ -165,25 +160,59 @@ export const Navbar: React.FC = () => {
                                 {user.email}
                               </p>
                             </div>
+                            <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform duration-200 ${
+                              showProfileMenu ? 'rotate-180' : ''
+                            }`} />
                           </button>
 
-                          {/* Profile Dropdown Menu */}
+                          {/* Enhanced Profile Dropdown Menu */}
                           {showProfileMenu && (
-                            <div className="absolute right-0 mt-2 w-48 bg-card rounded-lg shadow-lg border border-border z-50">
+                            <div className="absolute right-0 mt-2 w-56 bg-card rounded-lg shadow-lg border border-border z-50">
+                              {/* User Info Header */}
+                              <div className="px-4 py-3 border-b border-border">
+                                <div className="flex items-center space-x-3">
+                                  <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+                                    <span className="text-sm font-medium text-primary">
+                                      {user.full_name?.[0] || user.email?.[0] || '?'}
+                                    </span>
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-medium text-card-foreground truncate">
+                                      {user.full_name || user.username || 'User'}
+                                    </p>
+                                    <p className="text-xs text-muted-foreground truncate">
+                                      {user.email}
+                                    </p>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Menu Items */}
                               <div className="py-1">
                                 <button
                                   onClick={() => handleProfileMenuClick('settings')}
-                                  className="flex items-center space-x-2 w-full px-4 py-2 text-sm text-card-foreground hover:bg-muted transition-colors"
+                                  className="flex items-center space-x-3 w-full px-4 py-2 text-sm text-card-foreground hover:bg-muted transition-colors"
                                 >
-                                  <Settings className="w-4 h-4" />
+                                  <Settings className="w-4 h-4 text-muted-foreground" />
                                   <span>Settings</span>
                                 </button>
+                                
                                 <button
                                   onClick={() => handleProfileMenuClick('feedback')}
-                                  className="flex items-center space-x-2 w-full px-4 py-2 text-sm text-card-foreground hover:bg-muted transition-colors"
+                                  className="flex items-center space-x-3 w-full px-4 py-2 text-sm text-card-foreground hover:bg-muted transition-colors"
                                 >
-                                  <MessageSquare className="w-4 h-4" />
+                                  <MessageSquare className="w-4 h-4 text-muted-foreground" />
                                   <span>Send Feedback</span>
+                                </button>
+                                
+                                <div className="border-t border-border my-1"></div>
+                                
+                                <button
+                                  onClick={() => handleProfileMenuClick('signout')}
+                                  className="flex items-center space-x-3 w-full px-4 py-2 text-sm text-destructive hover:bg-destructive/10 transition-colors"
+                                >
+                                  <LogOut className="w-4 h-4" />
+                                  <span>Sign Out</span>
                                 </button>
                               </div>
                             </div>
@@ -286,33 +315,12 @@ export const Navbar: React.FC = () => {
                         >
                           Projects
                         </Link>
-                        <button
-                          onClick={() => {
-                            setIsMenuOpen(false);
-                            navigate('/settings');
-                          }}
-                          className={`block w-full text-left text-base font-medium transition-colors hover:text-primary ${
-                            isActivePath('/settings') 
-                              ? 'text-primary' 
-                              : 'text-muted-foreground'
-                          }`}
-                        >
-                          Settings
-                        </button>
-                        <button
-                          onClick={() => {
-                            setIsMenuOpen(false);
-                            setShowFeedbackModal(true);
-                          }}
-                          className="block w-full text-left text-base font-medium text-muted-foreground hover:text-primary transition-colors"
-                        >
-                          Send Feedback
-                        </button>
                       </>
                     )}
                   </div>
 
-                  <div className="pt-4 border-t border-border">
+                  {/* Mobile Profile Actions */}
+                  <div className="pt-4 border-t border-border space-y-3">
                     {isAnonymous ? (
                       <div className="space-y-2">
                         <Button
@@ -337,15 +345,42 @@ export const Navbar: React.FC = () => {
                         </Button>
                       </div>
                     ) : (
-                      <button
-                        onClick={() => {
-                          handleSignOut();
-                          setIsMenuOpen(false);
-                        }}
-                        className="block w-full text-left text-base font-medium text-muted-foreground hover:text-primary"
-                      >
-                        Sign Out
-                      </button>
+                      <>
+                        <button
+                          onClick={() => {
+                            setIsMenuOpen(false);
+                            navigate('/settings');
+                          }}
+                          className="flex items-center space-x-3 w-full text-left text-base font-medium text-muted-foreground hover:text-primary transition-colors"
+                        >
+                          <Settings className="w-4 h-4" />
+                          <span>Settings</span>
+                        </button>
+                        
+                        <button
+                          onClick={() => {
+                            setIsMenuOpen(false);
+                            setShowFeedbackModal(true);
+                          }}
+                          className="flex items-center space-x-3 w-full text-left text-base font-medium text-muted-foreground hover:text-primary transition-colors"
+                        >
+                          <MessageSquare className="w-4 h-4" />
+                          <span>Send Feedback</span>
+                        </button>
+                        
+                        <div className="border-t border-border pt-3">
+                          <button
+                            onClick={() => {
+                              handleSignOut();
+                              setIsMenuOpen(false);
+                            }}
+                            className="flex items-center space-x-3 w-full text-left text-base font-medium text-destructive hover:text-destructive/80 transition-colors"
+                          >
+                            <LogOut className="w-4 h-4" />
+                            <span>Sign Out</span>
+                          </button>
+                        </div>
+                      </>
                     )}
                   </div>
                 </>
