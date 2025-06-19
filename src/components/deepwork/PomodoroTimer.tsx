@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { Button } from '../ui/Button';
-import { Play, Pause, SkipForward, RotateCcw } from 'lucide-react';
+import { Play, Pause, SkipForward, PlusCircle } from 'lucide-react';
 import { formatTime } from '../../lib/utils';
 
 type TimerPhase = 'idle' | 'work' | 'shortBreak' | 'longBreak' | 'paused';
@@ -25,6 +25,7 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
   
   const [phase, setPhase] = useState<TimerPhase>('idle');
   const [timeLeft, setTimeLeft] = useState(workMinutes * 60); // in seconds
+  const [totalTime, setTotalTime] = useState(workMinutes * 60); // Track total time for progress
   const [completedCycles, setCompletedCycles] = useState(0);
   const [isRunning, setIsRunning] = useState(false);
   
@@ -124,15 +125,21 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
       // Determine break type
       if (newCompletedCycles % 4 === 0) {
         setPhase('longBreak');
-        setTimeLeft(longBreakMinutes * 60);
+        const newTime = longBreakMinutes * 60;
+        setTimeLeft(newTime);
+        setTotalTime(newTime);
       } else {
         setPhase('shortBreak');
-        setTimeLeft(shortBreakMinutes * 60);
+        const newTime = shortBreakMinutes * 60;
+        setTimeLeft(newTime);
+        setTotalTime(newTime);
       }
     } else {
       // After any break, go back to work
       setPhase('work');
-      setTimeLeft(workMinutes * 60);
+      const newTime = workMinutes * 60;
+      setTimeLeft(newTime);
+      setTotalTime(newTime);
     }
   };
 
@@ -140,7 +147,9 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
   const startTimer = () => {
     if (phase === 'idle') {
       setPhase('work');
-      setTimeLeft(workMinutes * 60);
+      const newTime = workMinutes * 60;
+      setTimeLeft(newTime);
+      setTotalTime(newTime);
     }
     setIsRunning(true);
     phaseStartTimeRef.current = new Date();
@@ -158,13 +167,11 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
     handlePhaseComplete();
   };
 
-  // Reset timer
-  const resetTimer = () => {
-    setIsRunning(false);
-    setPhase('idle');
-    setTimeLeft(workMinutes * 60);
-    setCompletedCycles(0);
-    phaseStartTimeRef.current = null;
+  // NEW: Add 5 minutes to current timer
+  const addFiveMinutes = () => {
+    const additionalTime = 5 * 60; // 5 minutes in seconds
+    setTimeLeft(prev => prev + additionalTime);
+    setTotalTime(prev => prev + additionalTime);
   };
 
   // Get phase display info
@@ -174,30 +181,54 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
         return { 
           label: 'Work Time', 
           color: 'text-primary', 
-          bgColor: 'bg-primary/10 border-primary/20' 
+          bgColor: 'bg-primary/10 border-primary/20',
+          progressColor: 'stroke-primary'
         };
       case 'shortBreak':
         return { 
           label: 'Short Break', 
           color: 'text-secondary', 
-          bgColor: 'bg-secondary/10 border-secondary/20' 
+          bgColor: 'bg-secondary/10 border-secondary/20',
+          progressColor: 'stroke-secondary'
         };
       case 'longBreak':
         return { 
           label: 'Long Break', 
           color: 'text-accent', 
-          bgColor: 'bg-accent/10 border-accent/20' 
+          bgColor: 'bg-accent/10 border-accent/20',
+          progressColor: 'stroke-accent'
         };
       default:
         return { 
           label: 'Ready to Start', 
           color: 'text-muted-foreground', 
-          bgColor: 'bg-muted border-border' 
+          bgColor: 'bg-muted border-border',
+          progressColor: 'stroke-muted-foreground'
         };
     }
   };
 
+  // Get next phase info for "Next Up" display
+  const getNextPhaseInfo = () => {
+    if (phase === 'work') {
+      const nextCycles = completedCycles + 1;
+      if (nextCycles % 4 === 0) {
+        return { label: 'Long Break', duration: formatTime(longBreakMinutes * 60) };
+      } else {
+        return { label: 'Short Break', duration: formatTime(shortBreakMinutes * 60) };
+      }
+    } else {
+      return { label: 'Work', duration: formatTime(workMinutes * 60) };
+    }
+  };
+
+  // Calculate progress percentage
+  const progressPercentage = totalTime > 0 ? ((totalTime - timeLeft) / totalTime) * 100 : 0;
+  const circumference = 2 * Math.PI * 90; // radius of 90
+  const strokeDashoffset = circumference - (progressPercentage / 100) * circumference;
+
   const phaseInfo = getPhaseInfo();
+  const nextPhase = getNextPhaseInfo();
 
   return (
     <div className={`rounded-2xl p-8 shadow-lg border ${phaseInfo.bgColor}`}>
@@ -213,15 +244,60 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
         )}
       </div>
 
-      {/* Timer Display */}
-      <div className="text-center mb-8">
-        <div className="text-6xl md:text-7xl font-mono font-bold text-foreground">
-          {formatTime(timeLeft)}
+      {/* Timer Display with Circular Progress */}
+      <div className="text-center mb-6 relative">
+        {/* Circular Progress Bar */}
+        {phase !== 'idle' && (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <svg className="w-64 h-64 transform -rotate-90" viewBox="0 0 200 200">
+              {/* Background circle */}
+              <circle
+                cx="100"
+                cy="100"
+                r="90"
+                stroke="currentColor"
+                strokeWidth="8"
+                fill="transparent"
+                className="text-border opacity-20"
+              />
+              {/* Progress circle */}
+              <circle
+                cx="100"
+                cy="100"
+                r="90"
+                stroke="currentColor"
+                strokeWidth="8"
+                fill="transparent"
+                strokeDasharray={circumference}
+                strokeDashoffset={strokeDashoffset}
+                strokeLinecap="round"
+                className={`${phaseInfo.progressColor} transition-all duration-1000 ease-out`}
+              />
+            </svg>
+          </div>
+        )}
+        
+        {/* Timer Text */}
+        <div className="relative z-10 flex items-center justify-center h-64">
+          <div className="text-6xl md:text-7xl font-mono font-bold text-foreground">
+            {formatTime(timeLeft)}
+          </div>
         </div>
       </div>
 
+      {/* Next Up Display */}
+      {phase !== 'idle' && (
+        <div className="text-center mb-6">
+          <p className="text-sm text-muted-foreground">
+            Next: <span className="font-medium text-card-foreground">
+              {nextPhase.label} ({nextPhase.duration})
+            </span>
+          </p>
+        </div>
+      )}
+
       {/* Controls */}
-      <div className="flex justify-center space-x-4">
+      <div className="flex justify-center space-x-3 mb-4">
         {!isRunning ? (
           <Button
             onClick={startTimer}
@@ -255,20 +331,23 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
           <span>Skip</span>
         </Button>
 
+        {/* NEW: Add 5 Min Button */}
         <Button
-          onClick={resetTimer}
+          onClick={addFiveMinutes}
           size="lg"
           variant="ghost"
           className="flex items-center space-x-2"
+          disabled={phase === 'idle' || timeLeft === 0}
+          title="Extend timer by 5 minutes"
         >
-          <RotateCcw className="w-5 h-5" />
-          <span>Reset</span>
+          <PlusCircle className="w-5 h-5" />
+          <span>+5 Min</span>
         </Button>
       </div>
 
-      {/* Progress Indicator */}
+      {/* Horizontal Progress Bar (Alternative/Additional) */}
       {phase !== 'idle' && (
-        <div className="mt-6">
+        <div className="mt-4">
           <div className="w-full bg-border rounded-full h-2">
             <div
               className={`h-2 rounded-full transition-all duration-1000 ${
@@ -277,25 +356,16 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
                 'bg-accent'
               }`}
               style={{
-                width: `${((getTotalTime() - timeLeft) / getTotalTime()) * 100}%`
+                width: `${progressPercentage}%`
               }}
             />
+          </div>
+          <div className="flex justify-between text-xs text-muted-foreground mt-1">
+            <span>0:00</span>
+            <span>{formatTime(totalTime)}</span>
           </div>
         </div>
       )}
     </div>
   );
-
-  function getTotalTime(): number {
-    switch (phase) {
-      case 'work':
-        return workMinutes * 60;
-      case 'shortBreak':
-        return shortBreakMinutes * 60;
-      case 'longBreak':
-        return longBreakMinutes * 60;
-      default:
-        return workMinutes * 60;
-    }
-  }
 };
