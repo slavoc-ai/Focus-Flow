@@ -66,7 +66,10 @@ export const FilePreviewItem: React.FC<FilePreviewItemProps> = ({
       {/* Remove Button */}
       {!isProcessing && !progress && (
         <button
-          onClick={onRemove}
+          onClick={(e) => {
+            e.stopPropagation(); // Prevent event bubbling to parent dropzone
+            onRemove();
+          }}
           className="absolute -top-1 -right-1 p-1 bg-destructive text-destructive-foreground rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:scale-110 z-10 shadow-sm"
           title="Remove file"
         >
