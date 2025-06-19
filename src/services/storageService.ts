@@ -4,6 +4,7 @@ import * as tus from 'tus-js-client';
 export interface TusUploadResult {
   success: boolean;
   path: string;
+  finalMimeType: string; // NEW: Return the effective MIME type used
   error?: string;
 }
 
@@ -35,6 +36,21 @@ class StorageService {
   }
 
   /**
+   * Get the effective MIME type for Gemini API compatibility
+   * Converts text/markdown to text/plain as per Gemini API requirements
+   */
+  private getEffectiveMimeType(file: File): string {
+    let effectiveMimeType = file.type || 'application/octet-stream';
+    
+    if (file.type === 'text/markdown') {
+      console.log(`[TUS] Treating markdown file ${file.name} as text/plain for Gemini API compatibility.`);
+      effectiveMimeType = 'text/plain';
+    }
+    
+    return effectiveMimeType;
+  }
+
+  /**
    * Upload a file using TUS resumable upload protocol
    * This is the recommended method for large files and premium users
    */
@@ -47,6 +63,7 @@ class StorageService {
       console.log('🚀 Starting TUS upload for:', {
         fileName: file.name,
         fileSize: file.size,
+        originalMimeType: file.type,
         userId: userId.substring(0, 8) + '...'
       });
 
@@ -62,6 +79,9 @@ class StorageService {
         throw new Error('No active session. Please sign in.');
       }
 
+      // Get effective MIME type (converts markdown to text/plain)
+      const effectiveMimeType = this.getEffectiveMimeType(file);
+
       // Construct a unique file path
       const timestamp = Date.now();
       const sanitizedFileName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
@@ -70,6 +90,7 @@ class StorageService {
       const objectPath = `${userId}/${uniqueFileName}`;
 
       console.log('📁 Generated object path:', objectPath);
+      console.log('🔧 Using effective MIME type:', effectiveMimeType);
 
       return new Promise((resolve, reject) => {
         const upload = new tus.Upload(file, {
@@ -77,12 +98,11 @@ class StorageService {
           retryDelays: [0, 3000, 5000, 10000, 20000], // Retry strategy
           headers: {
             authorization: `Bearer ${session.access_token}`,
-            // 'x-upsert': 'true', // Uncomment if you want to allow overwriting
           },
           metadata: {
             bucketName: this.BUCKET_NAME,
             objectName: objectPath, // Full path including user folder
-            contentType: file.type || 'application/octet-stream',
+            contentType: effectiveMimeType, // Use the effective MIME type
             cacheControl: '3600', // Cache for 1 hour
           },
           chunkSize: 6 * 1024 * 1024, // Recommended 6MB chunks
@@ -110,10 +130,12 @@ class StorageService {
           onSuccess: () => {
             console.log(`✅ TUS Upload Success for ${file.name}!`);
             console.log('📁 Final object path:', objectPath);
+            console.log('🔧 Final MIME type:', effectiveMimeType);
             
             resolve({ 
               success: true, 
-              path: objectPath 
+              path: objectPath,
+              finalMimeType: effectiveMimeType
             });
           },
         });
@@ -127,6 +149,7 @@ class StorageService {
       return {
         success: false,
         path: '',
+        finalMimeType: '',
         error: error instanceof Error ? error.message : 'TUS upload setup failed'
       };
     }

@@ -16,6 +16,40 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS'
 };
 
+/**
+ * Get the effective MIME type for Gemini API compatibility
+ * Converts text/markdown to text/plain as per Gemini API requirements
+ */
+function getEffectiveMimeType(originalMimeType: string, fileName: string): string {
+  let effectiveMimeType = originalMimeType || 'application/octet-stream';
+  
+  if (originalMimeType === 'text/markdown' || fileName.toLowerCase().endsWith('.md') || fileName.toLowerCase().endsWith('.markdown')) {
+    console.log(`[MIME] Treating markdown file ${fileName} as text/plain for Gemini API compatibility.`);
+    effectiveMimeType = 'text/plain';
+  }
+  
+  return effectiveMimeType;
+}
+
+/**
+ * Server-side validation for supported file types
+ */
+function validateFileType(mimeType: string, fileName: string): boolean {
+  const serverAllowedMimeTypes = [
+    'application/pdf',
+    'text/plain', // MD will be treated as this
+    'image/jpeg',
+    'image/png',
+    'image/webp',
+    'audio/mpeg',
+    'audio/wav',
+    'video/mp4'
+  ];
+
+  let effectiveMimeType = getEffectiveMimeType(mimeType, fileName);
+  return serverAllowedMimeTypes.includes(effectiveMimeType);
+}
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -25,7 +59,7 @@ serve(async (req) => {
   }
 
   try {
-    console.log('🚀 Edge Function started - enhanced generate-plan with premium support');
+    console.log('🚀 Edge Function started - enhanced generate-plan with official Gemini API support');
     console.log('🔧 LLM Configuration:', {
       model: LLM_CONFIG.MODEL_NAME,
       temperature: LLM_CONFIG.TEMPERATURE,
@@ -205,15 +239,28 @@ serve(async (req) => {
           const fileBuffer = await fileData.arrayBuffer();
           const fileName = path.split('/').pop() || 'document';
           
-          console.log(`📤 Uploading ${fileName} to Gemini File API...`);
+          // Get effective MIME type (handles markdown conversion)
+          const originalMimeType = fileData.type || 'application/octet-stream';
+          const effectiveMimeType = getEffectiveMimeType(originalMimeType, fileName);
+          
+          // Validate file type
+          if (!validateFileType(originalMimeType, fileName)) {
+            throw new Error(`Unsupported file type: ${originalMimeType} for file ${fileName}`);
+          }
+          
+          console.log(`📤 Uploading ${fileName} to Gemini File API...`, {
+            originalMimeType,
+            effectiveMimeType,
+            size: fileBuffer.byteLength
+          });
 
-          // Upload to Gemini File API
+          // Upload to Gemini File API with effective MIME type
           const uploadResponse = await fetch(
             `https://generativelanguage.googleapis.com/upload/v1beta/files?key=${apiKey}`,
             {
               method: 'POST',
               headers: {
-                'Content-Type': fileData.type || 'application/octet-stream',
+                'Content-Type': effectiveMimeType, // Use effective MIME type
               },
               body: fileBuffer
             }
@@ -234,7 +281,7 @@ serve(async (req) => {
 
           fileDataParts.push({
             file_data: {
-              mime_type: uploadData.file.mimeType,
+              mime_type: uploadData.file.mimeType || effectiveMimeType,
               file_uri: uploadData.file.uri,
             },
           });
@@ -254,6 +301,19 @@ serve(async (req) => {
       for (const file of documentFiles) {
         console.log(`📤 Uploading ${file.name} directly to Gemini...`);
         
+        // Get effective MIME type (handles markdown conversion)
+        const effectiveMimeType = getEffectiveMimeType(file.type, file.name);
+        
+        // Validate file type
+        if (!validateFileType(file.type, file.name)) {
+          throw new Error(`Unsupported file type: ${file.type} for file ${file.name}`);
+        }
+        
+        console.log(`🔧 MIME type handling for ${file.name}:`, {
+          originalType: file.type,
+          effectiveType: effectiveMimeType
+        });
+        
         const fileBuffer = await file.arrayBuffer();
 
         const uploadResponse = await fetch(
@@ -261,7 +321,7 @@ serve(async (req) => {
           {
             method: 'POST',
             headers: {
-              'Content-Type': file.type || 'application/octet-stream',
+              'Content-Type': effectiveMimeType, // Use effective MIME type
             },
             body: fileBuffer
           }
@@ -282,7 +342,7 @@ serve(async (req) => {
 
         fileDataParts.push({
           file_data: {
-            mime_type: uploadData.file.mimeType,
+            mime_type: uploadData.file.mimeType || effectiveMimeType,
             file_uri: uploadData.file.uri,
           },
         });
@@ -388,6 +448,7 @@ Example of the complete and required JSON output structure:
     console.log('📤 User type:', isAnonymous ? 'anonymous' : 'authenticated');
     console.log('📤 Using API key:', usingUserKey ? 'user' : 'default');
     console.log('📤 Upload method:', documentPaths.length > 0 ? 'premium-storage' : 'standard-formdata');
+    console.log('📤 Supported file types enforced:', 'PDF, TXT, MD→TXT, PNG, JPG, WEBP, MP3, WAV, MP4');
 
     // Execute the generateContent API call
     const geminiResponse = await fetch(
@@ -515,7 +576,7 @@ Example of the complete and required JSON output structure:
       }
     }
 
-    console.log('✅ Enhanced plan generated successfully:', {
+    console.log('✅ Enhanced plan generated successfully with official Gemini API support:', {
       model: LLM_CONFIG.MODEL_NAME,
       projectTitle: parsedResponse.project_title,
       subTasksCount: parsedResponse.sub_tasks.length,
@@ -528,7 +589,8 @@ Example of the complete and required JSON output structure:
       tokensUsed: geminiData.usageMetadata?.totalTokenCount,
       documentsProcessed: documentFiles.length + documentPaths.length,
       uploadMethod: documentPaths.length > 0 ? 'premium-storage' : 'standard-formdata',
-      fileUrisUsed: fileDataParts.map(f => f.file_data.file_uri)
+      fileUrisUsed: fileDataParts.map(f => f.file_data.file_uri),
+      supportedTypesEnforced: true
     });
 
     // Return the enhanced plan
@@ -542,7 +604,8 @@ Example of the complete and required JSON output structure:
       modelUsed: LLM_CONFIG.MODEL_NAME,
       documentsProcessed: documentFiles.length + documentPaths.length,
       breakdownLevel: breakdownLevel, // NEW: Include breakdown level in response
-      uploadMethod: documentPaths.length > 0 ? 'premium-storage' : 'standard-formdata'
+      uploadMethod: documentPaths.length > 0 ? 'premium-storage' : 'standard-formdata',
+      supportedTypesEnforced: true
     }), {
       headers: {
         ...corsHeaders,

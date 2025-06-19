@@ -63,7 +63,8 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
     // Handle rejected files due to file type
     if (rejectedFiles.length > 0) {
       const rejectedNames = rejectedFiles.map(r => r.file.name).join(', ');
-      validationErrors.push(`Unsupported file type(s): ${rejectedNames}. Please use PDF files (PPTX, PPT, DOC, DOCX, TXT, and MD will be later)`);
+      const supportedExtensions = "PDF, TXT, MD, PNG, JPG, WEBP, MP3, WAV, MP4";
+      validationErrors.push(`Unsupported file type(s) for: ${rejectedNames}. Supported types: ${supportedExtensions}`);
     }
 
     // Check against MAX_FILE_COUNT
@@ -123,13 +124,17 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     accept: {
+      // Officially supported by Gemini API
       'application/pdf': ['.pdf'],
-      'application/vnd.openxmlformats-officedocument.presentationml.presentation': ['.pptx'],
-      'application/vnd.ms-powerpoint': ['.ppt'],
-      'application/msword': ['.doc'],
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
       'text/plain': ['.txt'],
-      'text/markdown': ['.md']
+      'text/markdown': ['.md', '.markdown'], // Will be treated as text/plain
+      'image/jpeg': ['.jpeg', '.jpg'],
+      'image/png': ['.png'],
+      'image/webp': ['.webp'],
+      'audio/mpeg': ['.mp3'],
+      'audio/wav': ['.wav'],
+      'video/mp4': ['.mp4'],
+      // Note: DOCX, PPTX removed until conversion is implemented
     },
     multiple: true,
     disabled: isProcessing
@@ -177,10 +182,13 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
             </p>
             <div className="flex flex-wrap justify-center gap-2 text-xs text-muted-foreground">
               <span className="px-2 py-1 bg-muted rounded-full">PDF</span>
-              <span className="px-2 py-1 bg-muted rounded-full">PPTX</span>
-              <span className="px-2 py-1 bg-muted rounded-full">DOCX</span>
               <span className="px-2 py-1 bg-muted rounded-full">TXT</span>
               <span className="px-2 py-1 bg-muted rounded-full">MD</span>
+              <span className="px-2 py-1 bg-muted rounded-full">PNG</span>
+              <span className="px-2 py-1 bg-muted rounded-full">JPG</span>
+              <span className="px-2 py-1 bg-muted rounded-full">WEBP</span>
+              <span className="px-2 py-1 bg-muted rounded-full">MP3</span>
+              <span className="px-2 py-1 bg-muted rounded-full">MP4</span>
             </div>
           </div>
         ) : (
@@ -275,6 +283,11 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
           <div>• Max files: {MAX_FILE_COUNT}</div>
           <div>• Max total: {formatFileSize(MAX_TOTAL_SIZE_BYTES)}</div>
           <div>• Max per file: {formatFileSize(MAX_INDIVIDUAL_SIZE_BYTES)}</div>
+        </div>
+        <div className="mt-2 pt-2 border-t border-border">
+          <p className="text-xs text-muted-foreground">
+            <strong>Supported formats:</strong> PDF documents, text files (TXT, MD), images (PNG, JPG, WEBP), audio (MP3, WAV), video (MP4)
+          </p>
         </div>
         {isPremium && (
           <div className="mt-2 pt-2 border-t border-yellow-200 dark:border-yellow-800">
