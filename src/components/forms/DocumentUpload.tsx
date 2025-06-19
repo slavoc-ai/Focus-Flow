@@ -183,7 +183,6 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
             <div className="flex flex-wrap justify-center gap-2 text-xs text-muted-foreground">
               <span className="px-2 py-1 bg-muted rounded-full">PDF</span>
               <span className="px-2 py-1 bg-muted rounded-full">TXT</span>
-              <span className="px-2 py-1 bg-muted rounded-full">MD</span>
               <span className="px-2 py-1 bg-muted rounded-full">PNG</span>
               <span className="px-2 py-1 bg-muted rounded-full">JPG</span>
               <span className="px-2 py-1 bg-muted rounded-full">WEBP</span>
