@@ -13,7 +13,6 @@ import DashboardPage from './pages/DashboardPage';
 import ProjectListPage from './pages/ProjectListPage';
 import TaskPlanPage from './pages/TaskPlanPage';
 import DeepWorkPage from './pages/DeepWorkPage';
-import HistoryPage from './pages/HistoryPage';
 import SettingsPage from './pages/SettingsPage';
 import NotFoundPage from './pages/NotFoundPage';
 import AuthCallbackPage from './pages/AuthCallbackPage.tsx';
@@ -99,14 +98,6 @@ const AppRoutes: React.FC = () => {
             element={
               <ProtectedRoute>
                 <DeepWorkPage />
-              </ProtectedRoute>
-            } 
-          />
-          <Route 
-            path="history" 
-            element={
-              <ProtectedRoute>
-                <HistoryPage />
               </ProtectedRoute>
             } 
           />

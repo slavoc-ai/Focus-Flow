@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { PomodoroTimer } from '../components/deepwork/PomodoroTimer';
 import { TaskCarousel } from '../components/deepwork/TaskCarousel';
-import { FullPlanModal } from '../components/deepwork/FullPlanModal';
+import { FullPlanModal, SubTaskForModal } from '../components/deepwork/FullPlanModal';
 import { Button } from '../components/ui/Button';
 import { Toast } from '../components/ui/Toast';
 import { List, X, Save } from 'lucide-react';
@@ -81,7 +81,7 @@ const DeepWorkPage: React.FC = () => {
     return nextIndex !== -1 ? nextIndex : subTasks.findIndex(task => !task.isCompleted);
   };
 
-  // Handle task completion
+  // Enhanced task completion handler for FullPlanModal integration
   const handleTaskComplete = (taskId: string, completed: boolean) => {
     const updatedTasks = subTasks.map(task => 
       task.id === taskId ? { ...task, isCompleted: completed } : task
@@ -109,6 +109,15 @@ const DeepWorkPage: React.FC = () => {
           setCurrentTaskIndex(finalNextIndex);
         }, 300); // Small delay for smooth transition
       }
+    }
+  };
+
+  // Handle task selection from FullPlanModal
+  const handleTaskSelect = (taskId: string) => {
+    const taskIndex = subTasks.findIndex(task => task.id === taskId);
+    if (taskIndex !== -1) {
+      setCurrentTaskIndex(taskIndex);
+      setShowFullPlanModal(false);
     }
   };
 
@@ -433,24 +442,23 @@ const DeepWorkPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Enhanced Full Plan Modal */}
+      {/* Enhanced Full Plan Modal with Interactive Features */}
       <FullPlanModal
         isOpen={showFullPlanModal}
         onClose={() => setShowFullPlanModal(false)}
         tasks={subTasks.map(task => ({
           id: task.id,
-          sub_task_description: `${task.title}: ${task.action}`, // Combine title and action for display
+          title: task.title,
+          action: task.action,
+          details: task.details,
+          sub_task_description: task.sub_task_description,
           estimated_minutes_per_sub_task: task.estimated_minutes_per_sub_task,
           isCompleted: task.isCompleted
         }))}
         mainTask={mainTask}
-        onTaskSelect={(taskId) => {
-          const taskIndex = subTasks.findIndex(task => task.id === taskId);
-          if (taskIndex !== -1) {
-            setCurrentTaskIndex(taskIndex);
-            setShowFullPlanModal(false);
-          }
-        }}
+        onToggleTask={handleTaskComplete} // Enable interactive checkboxes
+        onTaskSelect={handleTaskSelect} // Enable task navigation
+        readOnly={false} // This is an interactive session modal
       />
 
       {/* Success Toast */}

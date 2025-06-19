@@ -52,6 +52,13 @@ export interface SubTask {
   updated_at: string;
 }
 
+// NEW: Project filters interface
+export interface ProjectFilters {
+  status?: 'all' | 'active' | 'planning' | 'in_progress' | 'completed';
+  searchTerm?: string;
+  sortBy?: 'updated_at_desc' | 'updated_at_asc' | 'created_at_desc' | 'created_at_asc' | 'completed_at_desc' | 'completed_at_asc' | 'title_asc' | 'title_desc';
+}
+
 class ProjectService {
   /**
    * Validate and sanitize estimated minutes to ensure it meets database constraints
@@ -85,6 +92,104 @@ class ProjectService {
     
     // Round to nearest integer to ensure clean data
     return Math.round(allocatedTimeMinutes);
+  }
+
+  /**
+   * Enhanced method to get projects with comprehensive filtering and sorting
+   */
+  async getProjectsWithFilters(
+    userId: string, 
+    filters: ProjectFilters = {}
+  ): Promise<{ projects: Project[]; success: boolean; error?: string }> {
+    try {
+      console.log('📋 Fetching projects with filters:', {
+        userId: userId.substring(0, 8) + '...',
+        filters
+      });
+
+      let query = supabase
+        .from('projects')
+        .select(`
+          *,
+          sub_tasks (*)
+        `)
+        .eq('user_id', userId);
+
+      // Apply status filter
+      if (filters.status && filters.status !== 'all') {
+        if (filters.status === 'active') {
+          query = query.in('status', ['planning', 'in_progress']);
+        } else {
+          query = query.eq('status', filters.status);
+        }
+      }
+
+      // Apply search filter
+      if (filters.searchTerm && filters.searchTerm.trim()) {
+        const searchTerm = filters.searchTerm.trim();
+        query = query.or(`title.ilike.%${searchTerm}%,original_query.ilike.%${searchTerm}%`);
+      }
+
+      // Apply sorting
+      if (filters.sortBy) {
+        switch (filters.sortBy) {
+          case 'completed_at_desc':
+            // For completion date sorting, we use updated_at for completed projects
+            query = query.eq('status', 'completed').order('updated_at', { ascending: false });
+            break;
+          case 'completed_at_asc':
+            query = query.eq('status', 'completed').order('updated_at', { ascending: true });
+            break;
+          case 'created_at_desc':
+            query = query.order('created_at', { ascending: false });
+            break;
+          case 'created_at_asc':
+            query = query.order('created_at', { ascending: true });
+            break;
+          case 'title_asc':
+            query = query.order('title', { ascending: true });
+            break;
+          case 'title_desc':
+            query = query.order('title', { ascending: false });
+            break;
+          case 'updated_at_asc':
+            query = query.order('updated_at', { ascending: true });
+            break;
+          case 'updated_at_desc':
+          default:
+            query = query.order('updated_at', { ascending: false });
+            break;
+        }
+      } else {
+        // Default sorting
+        query = query.order('updated_at', { ascending: false });
+      }
+
+      const { data: projects, error } = await query;
+
+      if (error) {
+        console.error('❌ Error fetching projects with filters:', error);
+        throw new Error(`Failed to fetch projects: ${error.message}`);
+      }
+
+      console.log('✅ Projects fetched successfully with filters:', {
+        count: projects?.length || 0,
+        filters
+      });
+
+      return {
+        projects: projects || [],
+        success: true
+      };
+
+    } catch (error) {
+      console.error('❌ Error in getProjectsWithFilters:', error);
+      return {
+        projects: [],
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error occurred'
+      };
+    }
   }
 
   /**
@@ -242,43 +347,10 @@ class ProjectService {
   }
 
   /**
-   * Get all projects for a user
+   * Get all projects for a user (legacy method - now uses getProjectsWithFilters)
    */
   async getProjectsByUserId(userId: string): Promise<{ projects: Project[]; success: boolean; error?: string }> {
-    try {
-      console.log('📋 Fetching projects for user:', userId.substring(0, 8) + '...');
-
-      const { data: projects, error } = await supabase
-        .from('projects')
-        .select(`
-          *,
-          sub_tasks (*)
-        `)
-        .eq('user_id', userId)
-        .order('updated_at', { ascending: false });
-
-      if (error) {
-        console.error('❌ Error fetching projects:', error);
-        throw new Error(`Failed to fetch projects: ${error.message}`);
-      }
-
-      console.log('✅ Projects fetched successfully:', {
-        count: projects?.length || 0
-      });
-
-      return {
-        projects: projects || [],
-        success: true
-      };
-
-    } catch (error) {
-      console.error('❌ Error in getProjectsByUserId:', error);
-      return {
-        projects: [],
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error occurred'
-      };
-    }
+    return this.getProjectsWithFilters(userId, {});
   }
 
   /**

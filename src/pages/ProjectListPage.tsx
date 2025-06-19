@@ -2,9 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/ui/Button';
+import { Input } from '../components/ui/Input';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
 import { Toast } from '../components/ui/Toast';
+import { FullPlanModal, SubTaskForModal } from '../components/deepwork/FullPlanModal';
 import { 
   Play, 
   Edit3, 
@@ -15,11 +17,18 @@ import {
   Plus,
   Calendar,
   Target,
-  Zap
+  Zap,
+  Search,
+  Filter,
+  Eye,
+  SortAsc,
+  SortDesc,
+  History,
+  Activity
 } from 'lucide-react';
-import { projectService, Project } from '../services/projectService';
+import { projectService, Project, ProjectFilters } from '../services/projectService';
 import { sessionService } from '../services/sessionService';
-import { formatDistanceToNow } from 'date-fns';
+import { formatDistanceToNow, format } from 'date-fns';
 
 interface ProjectWithStats extends Project {
   completedTasks: number;
@@ -38,11 +47,20 @@ const ProjectListPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [showSuccessToast, setShowSuccessToast] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
+  
+  // NEW: Filtering and preview state
+  const [filters, setFilters] = useState<ProjectFilters>({
+    status: 'active',
+    searchTerm: '',
+    sortBy: 'updated_at_desc'
+  });
+  const [previewingProject, setPreviewingProject] = useState<Project | null>(null);
+  const [showFilters, setShowFilters] = useState(false);
 
-  // Load projects on component mount
+  // Load projects on component mount and when filters change
   useEffect(() => {
     loadProjects();
-  }, [user]);
+  }, [user, filters]);
 
   const loadProjects = async () => {
     if (!user) return;
@@ -51,8 +69,8 @@ const ProjectListPage: React.FC = () => {
       setLoading(true);
       setError(null);
 
-      console.log('📋 Loading projects for user...');
-      const result = await projectService.getProjectsByUserId(user.id);
+      console.log('📋 Loading projects with filters:', filters);
+      const result = await projectService.getProjectsWithFilters(user.id, filters);
 
       if (result.success) {
         // Calculate stats for each project
@@ -172,6 +190,27 @@ const ProjectListPage: React.FC = () => {
     }
   };
 
+  // NEW: Handle project title click for preview
+  const handleProjectPreview = async (project: ProjectWithStats) => {
+    try {
+      console.log('👁️ Previewing project:', project.id);
+      
+      // Fetch full project details if needed
+      const result = await projectService.getProjectById(project.id, user.id);
+      
+      if (result.success && result.project) {
+        setPreviewingProject(result.project);
+      } else {
+        // Fallback to current project data
+        setPreviewingProject(project);
+      }
+    } catch (error) {
+      console.error('❌ Error loading project for preview:', error);
+      // Fallback to current project data
+      setPreviewingProject(project);
+    }
+  };
+
   const getStatusBadge = (project: ProjectWithStats) => {
     switch (project.status) {
       case 'completed':
@@ -184,7 +223,7 @@ const ProjectListPage: React.FC = () => {
       case 'in_progress':
         return (
           <Badge variant="warning" className="flex items-center space-x-1">
-            <Circle className="w-3 h-3" />
+            <Activity className="w-3 h-3" />
             <span>In Progress</span>
           </Badge>
         );
@@ -212,6 +251,24 @@ const ProjectListPage: React.FC = () => {
     }
   };
 
+  // NEW: Filter options
+  const statusOptions = [
+    { value: 'active', label: 'Active Projects', icon: Activity },
+    { value: 'completed', label: 'Completed Projects', icon: CheckCircle2 },
+    { value: 'all', label: 'All Projects', icon: Target }
+  ];
+
+  const sortOptions = [
+    { value: 'updated_at_desc', label: 'Last Updated (Newest)' },
+    { value: 'updated_at_asc', label: 'Last Updated (Oldest)' },
+    { value: 'created_at_desc', label: 'Date Created (Newest)' },
+    { value: 'created_at_asc', label: 'Date Created (Oldest)' },
+    { value: 'completed_at_desc', label: 'Date Completed (Newest)' },
+    { value: 'completed_at_asc', label: 'Date Completed (Oldest)' },
+    { value: 'title_asc', label: 'Title (A-Z)' },
+    { value: 'title_desc', label: 'Title (Z-A)' }
+  ];
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
@@ -222,24 +279,86 @@ const ProjectListPage: React.FC = () => {
 
   return (
     <div className="space-y-8">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-foreground">
-            My Projects
-          </h1>
-          <p className="text-muted-foreground mt-2">
-            Manage your tasks and track your progress
-          </p>
+      {/* Enhanced Header */}
+      <div className="flex flex-col space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-foreground">
+              My Projects
+            </h1>
+            <p className="text-muted-foreground mt-2">
+              Manage your tasks, track progress, and view project history
+            </p>
+          </div>
+          
+          <Button 
+            onClick={() => navigate('/')}
+            className="flex items-center space-x-2"
+          >
+            <Plus className="w-4 h-4" />
+            <span>New Project</span>
+          </Button>
         </div>
-        
-        <Button 
-          onClick={() => navigate('/')}
-          className="flex items-center space-x-2"
-        >
-          <Plus className="w-4 h-4" />
-          <span>New Project</span>
-        </Button>
+
+        {/* Enhanced Filters */}
+        <div className="flex flex-col lg:flex-row gap-4">
+          {/* Status Filter */}
+          <div className="flex space-x-2">
+            {statusOptions.map((option) => {
+              const Icon = option.icon;
+              return (
+                <Button
+                  key={option.value}
+                  variant={filters.status === option.value ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setFilters(prev => ({ ...prev, status: option.value as any }))}
+                  className="flex items-center space-x-2"
+                >
+                  <Icon className="w-4 h-4" />
+                  <span>{option.label}</span>
+                </Button>
+              );
+            })}
+          </div>
+
+          {/* Search and Sort */}
+          <div className="flex flex-1 space-x-2">
+            <div className="relative flex-1 max-w-md">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                placeholder="Search projects..."
+                value={filters.searchTerm || ''}
+                onChange={(e) => setFilters(prev => ({ ...prev, searchTerm: e.target.value }))}
+                className="pl-10"
+              />
+            </div>
+            
+            <select
+              value={filters.sortBy || 'updated_at_desc'}
+              onChange={(e) => setFilters(prev => ({ ...prev, sortBy: e.target.value as any }))}
+              className="px-3 py-2 bg-card border border-border rounded-md text-card-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            >
+              {sortOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {/* Results Summary */}
+        <div className="flex items-center justify-between text-sm text-muted-foreground">
+          <span>
+            {projects.length} project{projects.length !== 1 ? 's' : ''} found
+            {filters.status !== 'all' && ` (${filters.status === 'active' ? 'active' : filters.status})`}
+          </span>
+          {filters.searchTerm && (
+            <span>
+              Searching for: "{filters.searchTerm}"
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Error Display */}
@@ -260,12 +379,37 @@ const ProjectListPage: React.FC = () => {
       {projects.length === 0 ? (
         <div className="text-center py-12">
           <div className="bg-muted rounded-lg p-8 border border-border">
-            <h3 className="text-lg font-semibold text-card-foreground mb-2">
-              No projects yet
-            </h3>
-            <p className="text-muted-foreground mb-6">
-              Create your first project to get started with focused work sessions.
-            </p>
+            {filters.status === 'completed' ? (
+              <>
+                <History className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
+                <h3 className="text-lg font-semibold text-card-foreground mb-2">
+                  No completed projects yet
+                </h3>
+                <p className="text-muted-foreground mb-6">
+                  Complete some projects to see them here in your history.
+                </p>
+              </>
+            ) : filters.searchTerm ? (
+              <>
+                <Search className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
+                <h3 className="text-lg font-semibold text-card-foreground mb-2">
+                  No projects found
+                </h3>
+                <p className="text-muted-foreground mb-6">
+                  No projects match your search criteria. Try adjusting your filters.
+                </p>
+              </>
+            ) : (
+              <>
+                <Target className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
+                <h3 className="text-lg font-semibold text-card-foreground mb-2">
+                  No projects yet
+                </h3>
+                <p className="text-muted-foreground mb-6">
+                  Create your first project to get started with focused work sessions.
+                </p>
+              </>
+            )}
             <Button onClick={() => navigate('/')}>
               Create Your First Project
             </Button>
@@ -278,7 +422,10 @@ const ProjectListPage: React.FC = () => {
               <CardHeader>
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
-                    <CardTitle className="text-lg line-clamp-2">
+                    <CardTitle 
+                      className="text-lg line-clamp-2 cursor-pointer hover:text-primary transition-colors"
+                      onClick={() => handleProjectPreview(project)}
+                    >
                       {project.title}
                     </CardTitle>
                     <CardDescription className="mt-2 line-clamp-2">
@@ -350,28 +497,55 @@ const ProjectListPage: React.FC = () => {
                 <div className="flex items-center space-x-2 text-sm text-muted-foreground">
                   <Calendar className="w-4 h-4" />
                   <span>
-                    Updated {formatDistanceToNow(new Date(project.updated_at), { addSuffix: true })}
+                    {project.status === 'completed' 
+                      ? `Completed ${formatDistanceToNow(new Date(project.updated_at), { addSuffix: true })}`
+                      : `Updated ${formatDistanceToNow(new Date(project.updated_at), { addSuffix: true })}`
+                    }
                   </span>
                 </div>
               </CardContent>
 
               <CardFooter className="flex space-x-2">
-                <Button
-                  onClick={() => handleStartSession(project)}
-                  className="flex-1 flex items-center justify-center space-x-2"
-                  disabled={project.totalTasks === 0}
-                >
-                  <Play className="w-4 h-4" />
-                  <span>Start Session</span>
-                </Button>
-                
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={() => handleEditProject(project)}
-                >
-                  <Edit3 className="w-4 h-4" />
-                </Button>
+                {project.status === 'completed' ? (
+                  <>
+                    <Button
+                      onClick={() => handleProjectPreview(project)}
+                      className="flex-1 flex items-center justify-center space-x-2"
+                      variant="outline"
+                    >
+                      <Eye className="w-4 h-4" />
+                      <span>View Plan</span>
+                    </Button>
+                    
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => handleEditProject(project)}
+                      title="Duplicate Project"
+                    >
+                      <Edit3 className="w-4 h-4" />
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Button
+                      onClick={() => handleStartSession(project)}
+                      className="flex-1 flex items-center justify-center space-x-2"
+                      disabled={project.totalTasks === 0}
+                    >
+                      <Play className="w-4 h-4" />
+                      <span>Start Session</span>
+                    </Button>
+                    
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => handleEditProject(project)}
+                    >
+                      <Edit3 className="w-4 h-4" />
+                    </Button>
+                  </>
+                )}
                 
                 <Button
                   variant="ghost"
@@ -385,6 +559,25 @@ const ProjectListPage: React.FC = () => {
             </Card>
           ))}
         </div>
+      )}
+
+      {/* Enhanced Full Plan Modal for Preview */}
+      {previewingProject && (
+        <FullPlanModal
+          isOpen={!!previewingProject}
+          onClose={() => setPreviewingProject(null)}
+          tasks={previewingProject.sub_tasks?.map(task => ({
+            id: task.id,
+            title: task.title,
+            action: task.action,
+            details: task.details,
+            sub_task_description: task.description,
+            estimated_minutes_per_sub_task: task.estimated_minutes_per_sub_task,
+            isCompleted: task.is_completed
+          })) || []}
+          mainTask={previewingProject.title}
+          readOnly={true} // This is a preview modal
+        />
       )}
 
       {/* Success Toast */}

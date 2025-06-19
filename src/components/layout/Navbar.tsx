@@ -113,16 +113,6 @@ export const Navbar: React.FC = () => {
                       >
                         Projects
                       </Link>
-                      <Link 
-                        to="/history" 
-                        className={`text-sm font-medium transition-colors hover:text-primary ${
-                          isActivePath('/history') 
-                            ? 'text-primary' 
-                            : 'text-muted-foreground'
-                        }`}
-                      >
-                        History
-                      </Link>
                     </>
                   )}
                   
@@ -295,17 +285,6 @@ export const Navbar: React.FC = () => {
                           onClick={() => setIsMenuOpen(false)}
                         >
                           Projects
-                        </Link>
-                        <Link
-                          to="/history"
-                          className={`block text-base font-medium transition-colors hover:text-primary ${
-                            isActivePath('/history') 
-                              ? 'text-primary' 
-                              : 'text-muted-foreground'
-                          }`}
-                          onClick={() => setIsMenuOpen(false)}
-                        >
-                          History
                         </Link>
                         <button
                           onClick={() => {
