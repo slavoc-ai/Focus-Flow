@@ -174,7 +174,7 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
     setTotalTime(prev => prev + additionalTime);
   };
 
-  // Get phase display info
+  // Get phase display info with improved colors for visibility
   const getPhaseInfo = () => {
     switch (phase) {
       case 'work':
@@ -182,28 +182,33 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
           label: 'Work Time', 
           color: 'text-primary', 
           bgColor: 'bg-primary/10 border-primary/20',
-          progressColor: 'stroke-primary'
+          // Improved colors for better visibility in both themes
+          progressColor: '#2563EB', // Blue-600 - solid color for work
+          backgroundStroke: 'rgba(37, 99, 235, 0.15)' // Blue with low opacity
         };
       case 'shortBreak':
         return { 
           label: 'Short Break', 
           color: 'text-secondary', 
           bgColor: 'bg-secondary/10 border-secondary/20',
-          progressColor: 'stroke-secondary'
+          progressColor: '#10B981', // Emerald-500 - solid color for short break
+          backgroundStroke: 'rgba(16, 185, 129, 0.15)' // Emerald with low opacity
         };
       case 'longBreak':
         return { 
           label: 'Long Break', 
           color: 'text-accent', 
           bgColor: 'bg-accent/10 border-accent/20',
-          progressColor: 'stroke-accent'
+          progressColor: '#F97316', // Orange-500 - solid color for long break
+          backgroundStroke: 'rgba(249, 115, 22, 0.15)' // Orange with low opacity
         };
       default:
         return { 
           label: 'Ready to Start', 
           color: 'text-muted-foreground', 
           bgColor: 'bg-muted border-border',
-          progressColor: 'stroke-muted-foreground'
+          progressColor: '#6B7280', // Gray-500 - solid color for idle
+          backgroundStroke: 'rgba(107, 114, 128, 0.15)' // Gray with low opacity
         };
     }
   };
@@ -244,34 +249,36 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
         )}
       </div>
 
-      {/* Timer Display with Circular Progress */}
+      {/* Timer Display with Enhanced Circular Progress */}
       <div className="text-center mb-6 relative">
-        {/* Circular Progress Bar */}
+        {/* Circular Progress Bar with Fixed Colors */}
         {phase !== 'idle' && (
           <div className="absolute inset-0 flex items-center justify-center">
             <svg className="w-64 h-64 transform -rotate-90" viewBox="0 0 200 200">
-              {/* Background circle */}
+              {/* Background circle with improved visibility */}
               <circle
                 cx="100"
                 cy="100"
                 r="90"
-                stroke="currentColor"
+                stroke={phaseInfo.backgroundStroke}
                 strokeWidth="8"
                 fill="transparent"
-                className="text-border opacity-20"
               />
-              {/* Progress circle */}
+              {/* Progress circle with solid colors for better visibility */}
               <circle
                 cx="100"
                 cy="100"
                 r="90"
-                stroke="currentColor"
+                stroke={phaseInfo.progressColor}
                 strokeWidth="8"
                 fill="transparent"
                 strokeDasharray={circumference}
                 strokeDashoffset={strokeDashoffset}
                 strokeLinecap="round"
-                className={`${phaseInfo.progressColor} transition-all duration-1000 ease-out`}
+                className="transition-all duration-1000 ease-out"
+                style={{
+                  filter: 'drop-shadow(0 0 4px rgba(0, 0, 0, 0.1))'
+                }}
               />
             </svg>
           </div>
@@ -297,7 +304,7 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
       )}
 
       {/* Controls */}
-      <div className="flex justify-center space-x-3 mb-4">
+      <div className="flex justify-center space-x-3">
         {!isRunning ? (
           <Button
             onClick={startTimer}
@@ -331,7 +338,7 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
           <span>Skip</span>
         </Button>
 
-        {/* NEW: Add 5 Min Button */}
+        {/* Add 5 Min Button */}
         <Button
           onClick={addFiveMinutes}
           size="lg"
@@ -344,28 +351,6 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
           <span>+5 Min</span>
         </Button>
       </div>
-
-      {/* Horizontal Progress Bar (Alternative/Additional) */}
-      {phase !== 'idle' && (
-        <div className="mt-4">
-          <div className="w-full bg-border rounded-full h-2">
-            <div
-              className={`h-2 rounded-full transition-all duration-1000 ${
-                phase === 'work' ? 'bg-primary' :
-                phase === 'shortBreak' ? 'bg-secondary' :
-                'bg-accent'
-              }`}
-              style={{
-                width: `${progressPercentage}%`
-              }}
-            />
-          </div>
-          <div className="flex justify-between text-xs text-muted-foreground mt-1">
-            <span>0:00</span>
-            <span>{formatTime(totalTime)}</span>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
