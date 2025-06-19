@@ -87,7 +87,7 @@ User Agent: ${feedbackData.user_agent || 'Not provided'}
     console.log('📧 Preparing to send email:', {
       subject: emailSubject,
       bodyLength: emailBody.length,
-      to: 'support@focusflow.app'
+      to: '1v.bochkarev1@gmail.com'
     });
 
     // For now, we'll store the feedback in the database
