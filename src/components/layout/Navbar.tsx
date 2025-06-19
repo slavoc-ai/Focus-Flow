@@ -3,13 +3,16 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { Button } from '../ui/Button';
 import { ThemeToggle } from '../ui/ThemeToggle';
-import { Brain, Menu, X, UserPlus } from 'lucide-react';
+import { FeedbackModal } from '../feedback/FeedbackModal';
+import { Brain, Menu, X, UserPlus, MessageSquare, Settings, User } from 'lucide-react';
 
 export const Navbar: React.FC = () => {
   const { user, signOut, isAnonymous } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [isMenuOpen, setIsMenuOpen] = React.useState(false);
+  const [showFeedbackModal, setShowFeedbackModal] = React.useState(false);
+  const [showProfileMenu, setShowProfileMenu] = React.useState(false);
 
   // ADD DETAILED LOGGING:
   console.log('Navbar: Auth state received:', { 
@@ -32,6 +35,15 @@ export const Navbar: React.FC = () => {
 
   const isActivePath = (path: string) => {
     return location.pathname === path;
+  };
+
+  const handleProfileMenuClick = (action: 'settings' | 'feedback') => {
+    setShowProfileMenu(false);
+    if (action === 'settings') {
+      navigate('/settings');
+    } else if (action === 'feedback') {
+      setShowFeedbackModal(true);
+    }
   };
 
   return (
@@ -111,16 +123,6 @@ export const Navbar: React.FC = () => {
                       >
                         History
                       </Link>
-                      <Link 
-                        to="/settings" 
-                        className={`text-sm font-medium transition-colors hover:text-primary ${
-                          isActivePath('/settings') 
-                            ? 'text-primary' 
-                            : 'text-muted-foreground'
-                        }`}
-                      >
-                        Settings
-                      </Link>
                     </>
                   )}
                   
@@ -153,20 +155,49 @@ export const Navbar: React.FC = () => {
                         >
                           Sign Out
                         </Button>
-                        <div className="flex items-center space-x-3">
-                          <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
-                            <span className="text-sm font-medium text-primary">
-                              {user.full_name?.[0] || user.email?.[0] || '?'}
-                            </span>
-                          </div>
-                          <div className="hidden lg:block">
-                            <p className="text-sm font-medium text-card-foreground">
-                              {user.full_name || user.username || 'User'}
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              {user.email}
-                            </p>
-                          </div>
+                        
+                        {/* Profile Avatar with Dropdown */}
+                        <div className="relative">
+                          <button
+                            onClick={() => setShowProfileMenu(!showProfileMenu)}
+                            className="flex items-center space-x-3 p-2 rounded-lg hover:bg-muted transition-colors"
+                          >
+                            <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
+                              <span className="text-sm font-medium text-primary">
+                                {user.full_name?.[0] || user.email?.[0] || '?'}
+                              </span>
+                            </div>
+                            <div className="hidden lg:block text-left">
+                              <p className="text-sm font-medium text-card-foreground">
+                                {user.full_name || user.username || 'User'}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                {user.email}
+                              </p>
+                            </div>
+                          </button>
+
+                          {/* Profile Dropdown Menu */}
+                          {showProfileMenu && (
+                            <div className="absolute right-0 mt-2 w-48 bg-card rounded-lg shadow-lg border border-border z-50">
+                              <div className="py-1">
+                                <button
+                                  onClick={() => handleProfileMenuClick('settings')}
+                                  className="flex items-center space-x-2 w-full px-4 py-2 text-sm text-card-foreground hover:bg-muted transition-colors"
+                                >
+                                  <Settings className="w-4 h-4" />
+                                  <span>Settings</span>
+                                </button>
+                                <button
+                                  onClick={() => handleProfileMenuClick('feedback')}
+                                  className="flex items-center space-x-2 w-full px-4 py-2 text-sm text-card-foreground hover:bg-muted transition-colors"
+                                >
+                                  <MessageSquare className="w-4 h-4" />
+                                  <span>Send Feedback</span>
+                                </button>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       </>
                     )}
@@ -276,17 +307,28 @@ export const Navbar: React.FC = () => {
                         >
                           History
                         </Link>
-                        <Link
-                          to="/settings"
-                          className={`block text-base font-medium transition-colors hover:text-primary ${
+                        <button
+                          onClick={() => {
+                            setIsMenuOpen(false);
+                            navigate('/settings');
+                          }}
+                          className={`block w-full text-left text-base font-medium transition-colors hover:text-primary ${
                             isActivePath('/settings') 
                               ? 'text-primary' 
                               : 'text-muted-foreground'
                           }`}
-                          onClick={() => setIsMenuOpen(false)}
                         >
                           Settings
-                        </Link>
+                        </button>
+                        <button
+                          onClick={() => {
+                            setIsMenuOpen(false);
+                            setShowFeedbackModal(true);
+                          }}
+                          className="block w-full text-left text-base font-medium text-muted-foreground hover:text-primary transition-colors"
+                        >
+                          Send Feedback
+                        </button>
                       </>
                     )}
                   </div>
@@ -352,6 +394,20 @@ export const Navbar: React.FC = () => {
           </div>
         )}
       </nav>
+
+      {/* Click outside to close profile menu */}
+      {showProfileMenu && (
+        <div 
+          className="fixed inset-0 z-40" 
+          onClick={() => setShowProfileMenu(false)}
+        />
+      )}
+
+      {/* Feedback Modal */}
+      <FeedbackModal
+        isOpen={showFeedbackModal}
+        onClose={() => setShowFeedbackModal(false)}
+      />
     </>
   );
 };

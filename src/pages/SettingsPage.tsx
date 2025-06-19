@@ -6,6 +6,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../co
 import { Toast } from '../components/ui/Toast';
 import { CheckboxField } from '../components/forms/CheckboxField';
 import { TimeSelector } from '../components/forms/TimeSelector';
+import { FeedbackModal } from '../components/feedback/FeedbackModal';
 import { supabase } from '../lib/supabaseClient';
 import { 
   User, 
@@ -19,7 +20,8 @@ import {
   AlertCircle,
   CheckCircle2,
   Settings as SettingsIcon,
-  Brain
+  Brain,
+  MessageSquare
 } from 'lucide-react';
 
 interface UserSettings {
@@ -66,6 +68,7 @@ const SettingsPage: React.FC = () => {
   const [successMessage, setSuccessMessage] = useState('');
   const [testingApiKey, setTestingApiKey] = useState(false);
   const [apiKeyTestResult, setApiKeyTestResult] = useState<'success' | 'error' | null>(null);
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
 
   // Load user settings on mount
   useEffect(() => {
@@ -584,6 +587,35 @@ const SettingsPage: React.FC = () => {
         </CardContent>
       </Card>
 
+      {/* Feedback Section */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center space-x-3">
+            <MessageSquare className="w-5 h-5 text-primary" />
+            <div>
+              <CardTitle>Feedback & Support</CardTitle>
+              <CardDescription>
+                Help us improve FocusFlow with your thoughts and suggestions
+              </CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="bg-muted rounded-lg p-4">
+            <p className="text-muted-foreground mb-4">
+              Have feedback, suggestions, or need help? We'd love to hear from you!
+            </p>
+            <Button
+              onClick={() => setShowFeedbackModal(true)}
+              className="flex items-center space-x-2"
+            >
+              <MessageSquare className="w-4 h-4" />
+              <span>Send Feedback</span>
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Usage Information */}
       <Card>
         <CardHeader>
@@ -634,6 +666,12 @@ const SettingsPage: React.FC = () => {
           />
         </div>
       )}
+
+      {/* Feedback Modal */}
+      <FeedbackModal
+        isOpen={showFeedbackModal}
+        onClose={() => setShowFeedbackModal(false)}
+      />
     </div>
   );
 };
