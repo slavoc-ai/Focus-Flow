@@ -63,7 +63,7 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
     // Handle rejected files due to file type
     if (rejectedFiles.length > 0) {
       const rejectedNames = rejectedFiles.map(r => r.file.name).join(', ');
-      validationErrors.push(`Unsupported file type(s): ${rejectedNames}. Please use PDF, PPTX, PPT, DOC, DOCX, TXT, or MD files.`);
+      validationErrors.push(`Unsupported file type(s): ${rejectedNames}. Please use PDF files (PPTX, PPT, DOC, DOCX, TXT, and MD will be later)`);
     }
 
     // Check against MAX_FILE_COUNT
