@@ -299,7 +299,7 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
         {!isPremium && (
           <div className="mt-2 pt-2 border-t border-border">
             <p className="text-xs text-muted-foreground">
-              💎 <strong>Upgrade to Premium</strong>: up to {MAX_PREMIUM_FILES} files, up to {MAX_PREMIUM_INDIVIDUAL_MB}MB, and priority processing.
+              💎 <strong>Upgrade to Premium</strong>: up to {MAX_PREMIUM_FILES} files, up to {MAX_PREMIUM_INDIVIDUAL_MB}MB, priority processing.
             </p>
           </div>
         )}
