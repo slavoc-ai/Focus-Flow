@@ -27,9 +27,9 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
 
   // Dynamic limits based on subscription status
   const MAX_STANDARD_INDIVIDUAL_MB = 9.5;
-  const MAX_PREMIUM_INDIVIDUAL_MB = 500;
+  const MAX_PREMIUM_INDIVIDUAL_MB = 50;
   const MAX_STANDARD_TOTAL_MB = 9.5;
-  const MAX_PREMIUM_TOTAL_MB = 500;
+  const MAX_PREMIUM_TOTAL_MB = 50;
   const MAX_STANDARD_FILES = 5;
   const MAX_PREMIUM_FILES = 20;
 
