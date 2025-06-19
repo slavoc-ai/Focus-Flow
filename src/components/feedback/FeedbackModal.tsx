@@ -5,6 +5,7 @@ import { Input } from '../ui/Input';
 import { Toast } from '../ui/Toast';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabaseClient';
+import { SUPPORT_EMAIL } from '../../constants/contact';
 import { Send, MessageSquare, Star, Bug, Lightbulb, Heart, X } from 'lucide-react';
 
 interface FeedbackModalProps {
@@ -75,7 +76,8 @@ export const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose })
         hasSubject: !!subject,
         messageLength: message.length,
         hasRating: rating !== null,
-        userType: user?.is_anonymous ? 'anonymous' : 'authenticated'
+        userType: user?.is_anonymous ? 'anonymous' : 'authenticated',
+        supportEmail: SUPPORT_EMAIL
       });
 
       // Send feedback via Edge Function
@@ -228,7 +230,7 @@ export const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose })
               ({user?.email || 'anonymous@focusflow.app'})
             </p>
             <p className="text-xs text-muted-foreground mt-1">
-              This feedback will be sent to <strong>support@focusflow.app</strong>
+              This feedback will be sent to <strong>{SUPPORT_EMAIL}</strong>
             </p>
           </div>
 

@@ -1,4 +1,5 @@
 import { supabase } from './supabaseClient';
+import { SUPPORT_EMAIL } from '../constants/contact';
 
 export type AnalyticsEvent = {
   event_name: string;
@@ -20,6 +21,9 @@ class Analytics {
         this.flush();
       });
     }
+
+    // Log the support email configuration for debugging
+    console.log('📊 Analytics initialized with support email:', SUPPORT_EMAIL);
   }
 
   public static getInstance(): Analytics {
@@ -57,11 +61,13 @@ class Analytics {
 
       if (error) {
         console.error('Error sending analytics events:', error);
+        console.error(`For analytics issues, contact support at: ${SUPPORT_EMAIL}`);
         // Re-queue failed events
         this.eventQueue = [...eventsToSend, ...this.eventQueue];
       }
     } catch (error) {
       console.error('Error flushing analytics events:', error);
+      console.error(`For analytics issues, contact support at: ${SUPPORT_EMAIL}`);
       // Re-queue failed events
       this.eventQueue = [...eventsToSend, ...this.eventQueue];
     }
@@ -103,6 +109,7 @@ class Analytics {
       error_name: error.name,
       error_message: error.message,
       error_stack: error.stack,
+      support_email: SUPPORT_EMAIL,
       ...additional_data,
     });
   }

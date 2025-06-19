@@ -1,6 +1,9 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
+// Support email constant - change this to update the email address everywhere
+const SUPPORT_EMAIL = '1v.bochkarev1@gmail.com';
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -28,6 +31,7 @@ serve(async (req) => {
 
   try {
     console.log('📧 Edge Function: send-feedback started');
+    console.log('📧 Support email configured as:', SUPPORT_EMAIL);
     
     // Get the authorization header
     const authHeader = req.headers.get('Authorization');
@@ -53,7 +57,8 @@ serve(async (req) => {
       messageLength: feedbackData.message?.length || 0,
       hasRating: feedbackData.rating !== null && feedbackData.rating !== undefined,
       userEmail: feedbackData.user_email,
-      userName: feedbackData.user_name
+      userName: feedbackData.user_name,
+      supportEmail: SUPPORT_EMAIL
     });
 
     // Validate required fields
@@ -87,7 +92,7 @@ User Agent: ${feedbackData.user_agent || 'Not provided'}
     console.log('📧 Preparing to send email:', {
       subject: emailSubject,
       bodyLength: emailBody.length,
-      to: '1v.bochkarev1@gmail.com'
+      to: SUPPORT_EMAIL
     });
 
     // For now, we'll store the feedback in the database
@@ -122,7 +127,7 @@ User Agent: ${feedbackData.user_agent || 'Not provided'}
 
     // TODO: Integrate with actual email service
     // For now, we'll simulate email sending
-    console.log('📧 Email would be sent to support@focusflow.app with content:', {
+    console.log(`📧 Email would be sent to ${SUPPORT_EMAIL} with content:`, {
       subject: emailSubject,
       preview: emailBody.substring(0, 200) + '...'
     });
@@ -135,7 +140,8 @@ User Agent: ${feedbackData.user_agent || 'Not provided'}
     return new Response(
       JSON.stringify({
         success: true,
-        message: 'Feedback sent successfully'
+        message: 'Feedback sent successfully',
+        supportEmail: SUPPORT_EMAIL
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },

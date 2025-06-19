@@ -1,4 +1,5 @@
 import { supabase } from './supabaseClient';
+import { SUPPORT_EMAIL } from '../constants/contact';
 
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 
@@ -30,6 +31,9 @@ class Logger {
         this.flush();
       });
     }
+
+    // Log the support email configuration for debugging
+    console.log('📧 Logger initialized with support email:', SUPPORT_EMAIL);
   }
 
   public static getInstance(): Logger {
@@ -62,11 +66,13 @@ class Logger {
 
       if (error) {
         console.error('Error sending logs to Supabase:', error);
+        console.error(`For critical issues, contact support at: ${SUPPORT_EMAIL}`);
         // Re-queue failed logs
         this.logQueue = [...logsToSend, ...this.logQueue];
       }
     } catch (error) {
       console.error('Error flushing logs:', error);
+      console.error(`For critical issues, contact support at: ${SUPPORT_EMAIL}`);
       // Re-queue failed logs
       this.logQueue = [...logsToSend, ...this.logQueue];
     }
@@ -120,6 +126,11 @@ class Logger {
 
   public error(message: string, context?: Record<string, any>): void {
     this.addToQueue({ level: 'error', message, context });
+    
+    // For critical errors, also log support contact info
+    if (import.meta.env.DEV) {
+      console.error(`For support, contact: ${SUPPORT_EMAIL}`);
+    }
   }
 
   public async createErrorLog(error: Error, context?: Record<string, any>): Promise<void> {
@@ -127,6 +138,7 @@ class Logger {
       ...context,
       name: error.name,
       stack: error.stack,
+      supportEmail: SUPPORT_EMAIL
     };
 
     this.error(error.message, errorContext);

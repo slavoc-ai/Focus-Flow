@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Brain, Mail, Shield, FileText } from 'lucide-react';
 import { Modal } from '../ui/Modal';
+import { SUPPORT_EMAIL, BUSINESS_EMAIL, RESPONSE_TIME } from '../../constants/contact';
 
 export const Footer: React.FC = () => {
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
@@ -82,7 +83,7 @@ export const Footer: React.FC = () => {
             
             <div>
               <h4 className="font-semibold text-card-foreground mb-2">Contact Us</h4>
-              <p>If you have any questions about this Privacy Policy, please contact us using the information provided in our Contact section.</p>
+              <p>If you have any questions about this Privacy Policy, please contact us at <strong>{SUPPORT_EMAIL}</strong>.</p>
             </div>
           </div>
         </div>
@@ -132,6 +133,11 @@ export const Footer: React.FC = () => {
               <h4 className="font-semibold text-card-foreground mb-2">Limitation of Liability</h4>
               <p>In no event shall FocusFlow or its suppliers be liable for any damages arising out of the use or inability to use the materials on FocusFlow's website.</p>
             </div>
+            
+            <div>
+              <h4 className="font-semibold text-card-foreground mb-2">Contact Information</h4>
+              <p>For questions about these Terms of Service, please contact us at <strong>{SUPPORT_EMAIL}</strong>.</p>
+            </div>
           </div>
         </div>
       </Modal>
@@ -156,7 +162,7 @@ export const Footer: React.FC = () => {
               <p className="text-muted-foreground mb-2">
                 Have questions, suggestions, or need help? We're here to assist you.
               </p>
-              <p className="text-primary font-medium">support@focusflow.app</p>
+              <p className="text-primary font-medium">{SUPPORT_EMAIL}</p>
             </div>
             
             <div className="bg-muted rounded-lg p-4">
@@ -164,13 +170,13 @@ export const Footer: React.FC = () => {
               <p className="text-muted-foreground mb-2">
                 Interested in partnerships or enterprise solutions?
               </p>
-              <p className="text-primary font-medium">business@focusflow.app</p>
+              <p className="text-primary font-medium">{BUSINESS_EMAIL}</p>
             </div>
             
             <div className="bg-muted rounded-lg p-4">
               <h4 className="font-semibold text-card-foreground mb-2">Response Time</h4>
               <p className="text-muted-foreground">
-                We typically respond to all inquiries within 24-48 hours during business days.
+                We typically respond to all inquiries within {RESPONSE_TIME}.
               </p>
             </div>
             
