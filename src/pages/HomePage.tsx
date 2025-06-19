@@ -142,7 +142,7 @@ const HomePage: React.FC = () => {
           ) : (
             <>
               <Wand2 className="w-4 h-4" />
-              <span>Guided Mode</span>
+              <span>Wizard Mode</span>
             </>
           )}
         </Button>
