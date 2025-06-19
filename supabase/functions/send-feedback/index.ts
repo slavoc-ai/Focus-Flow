@@ -1,14 +1,16 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
-// Support email constant - change this to update the email address everywhere
 const SUPPORT_EMAIL = '1v.bochkarev1@gmail.com';
 
+// --- ENSURE YOUR CORS HEADERS ARE COMPREHENSIVE ---
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS'
+  'Access-Control-Allow-Origin': '*', // Or your specific frontend origin in production
+  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS', // Make sure POST is here
+  'Access-Control-Allow-Headers': 
+    'authorization, x-client-info, apikey, content-type, sentry-trace, baggage', // Be generous
 };
+// ------------------------------------------------
 
 interface FeedbackRequest {
   type: 'general' | 'bug' | 'feature' | 'compliment';
@@ -24,13 +26,19 @@ interface FeedbackRequest {
 }
 
 serve(async (req) => {
-  // Handle CORS preflight requests
+  // --- CORRECTED OPTIONS HANDLING ---
+  // Handle CORS preflight requests FIRST and ensure it returns 200 OK.
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+    console.log('📧 Handling OPTIONS request for send-feedback');
+    return new Response('ok', { 
+      status: 200, // Explicitly set 200 OK
+      headers: corsHeaders 
+    });
   }
+  // ---------------------------------
 
   try {
-    console.log('📧 Edge Function: send-feedback started');
+    console.log('📧 Edge Function: send-feedback POST request started');
     console.log('📧 Support email configured as:', SUPPORT_EMAIL);
     
     // Get the authorization header
@@ -137,19 +145,21 @@ User Agent: ${feedbackData.user_agent || 'Not provided'}
 
     console.log('✅ Feedback processed successfully');
 
+    // Example of returning success
     return new Response(
       JSON.stringify({
         success: true,
-        message: 'Feedback sent successfully',
-        supportEmail: SUPPORT_EMAIL
+        message: 'Feedback processed successfully', // Changed from "sent" as it's stored
+        supportEmailSentTo: SUPPORT_EMAIL // Clarify what happened
       }),
       {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }, // Ensure corsHeaders are also on the actual response
+        status: 200 // Explicit success status for POST
       }
     );
 
   } catch (error) {
-    console.error('❌ Error in send-feedback:', error.message);
+    console.error('❌ Error in send-feedback:', error.message, error.stack);
     
     return new Response(
       JSON.stringify({
@@ -157,8 +167,8 @@ User Agent: ${feedbackData.user_agent || 'Not provided'}
         error: error.message || 'An unexpected error occurred'
       }),
       {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 400, // Or other appropriate error code
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }, // Also on error responses
       }
     );
   }
