@@ -74,10 +74,7 @@ export const TaskCarousel: React.FC<TaskCarouselProps> = ({
   }
 
   return (
-    <div className="w-full">
-      <h3 className="text-lg font-semibold text-foreground mb-6 text-center">
-        Enhanced Task Progress with In-Session Editing
-      </h3>
+
       
       {/* Carousel Container */}
       <div className="relative overflow-hidden">
