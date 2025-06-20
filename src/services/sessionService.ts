@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabaseClient';
 import { projectService } from './projectService';
+import { SubTaskUpdate } from '../types';
 
 // Types for session service
 export interface SessionDetails {
@@ -8,11 +9,6 @@ export interface SessionDetails {
   start_time: Date;
   end_time: Date;
   notes?: string;
-}
-
-export interface SubTaskUpdate {
-  id: string;
-  is_completed: boolean;
 }
 
 export interface WorkSession {
@@ -30,6 +26,7 @@ export interface WorkSession {
 class SessionService {
   /**
    * Save session progress including sub-task updates and session metrics
+   * Enhanced to handle full sub-task field updates (title, action, details, estimated_minutes)
    */
   async saveSessionProgress(
     projectId: string,
@@ -38,26 +35,72 @@ class SessionService {
     userId: string
   ): Promise<{ success: boolean; error?: string }> {
     try {
-      console.log('🚀 Saving session progress:', {
+      console.log('🚀 Saving enhanced session progress:', {
         projectId,
         subTaskUpdates: updatedSubTasks.length,
         pomodorosCompleted: sessionDetails.pomodoros_completed,
         focusedMinutes: sessionDetails.total_focused_minutes,
-        userId: userId.substring(0, 8) + '...'
+        userId: userId.substring(0, 8) + '...',
+        hasTextUpdates: updatedSubTasks.some(task => task.title || task.action || task.details),
+        hasTimeUpdates: updatedSubTasks.some(task => task.estimated_minutes_per_sub_task !== undefined)
       });
 
-      // 1. Update sub-task completion statuses
+      // 1. Update sub-task completion statuses and enhanced fields
       if (updatedSubTasks.length > 0) {
-        const { success: subTaskSuccess, error: subTaskError } = await projectService.batchUpdateSubTaskCompletion(
-          updatedSubTasks,
-          userId
-        );
+        // Use Promise.all for concurrent updates with enhanced field support
+        const updatePromises = updatedSubTasks.map(update => {
+          const updateData: any = {
+            updated_at: new Date().toISOString()
+          };
 
-        if (!subTaskSuccess) {
-          throw new Error(`Failed to update sub-tasks: ${subTaskError}`);
+          // Only include fields that are actually being updated
+          if (update.is_completed !== undefined) {
+            updateData.is_completed = update.is_completed;
+          }
+          if (update.title !== undefined) {
+            updateData.title = update.title;
+          }
+          if (update.action !== undefined) {
+            updateData.action = update.action;
+          }
+          if (update.details !== undefined) {
+            updateData.details = update.details;
+          }
+          if (update.description !== undefined) {
+            updateData.description = update.description;
+          }
+          if (update.estimated_minutes_per_sub_task !== undefined) {
+            updateData.estimated_minutes_per_sub_task = update.estimated_minutes_per_sub_task;
+          }
+          if (update.order_index !== undefined) {
+            updateData.order_index = update.order_index;
+          }
+
+          console.log(`📝 Updating sub-task ${update.id}:`, {
+            hasTitle: update.title !== undefined,
+            hasAction: update.action !== undefined,
+            hasDetails: update.details !== undefined,
+            hasEstimate: update.estimated_minutes_per_sub_task !== undefined,
+            isCompleted: update.is_completed
+          });
+
+          return supabase
+            .from('sub_tasks')
+            .update(updateData)
+            .eq('id', update.id)
+            .eq('user_id', userId);
+        });
+
+        const results = await Promise.all(updatePromises);
+
+        // Check for any errors
+        const errors = results.filter(result => result.error);
+        if (errors.length > 0) {
+          console.error('❌ Errors in enhanced sub-task updates:', errors);
+          throw new Error(`Failed to update ${errors.length} sub-tasks`);
         }
 
-        console.log('✅ Sub-tasks updated successfully');
+        console.log('✅ Enhanced sub-tasks updated successfully');
       }
 
       // 2. Save work session record
@@ -91,7 +134,7 @@ class SessionService {
       return { success: true };
 
     } catch (error) {
-      console.error('❌ Error in saveSessionProgress:', error);
+      console.error('❌ Error in enhanced saveSessionProgress:', error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error occurred'
@@ -250,6 +293,7 @@ class SessionService {
 
   /**
    * Best-effort session save for interruptions
+   * Enhanced to handle full sub-task field updates
    */
   async saveInterruptedSession(
     projectId: string,
@@ -258,7 +302,7 @@ class SessionService {
     userId: string
   ): Promise<void> {
     try {
-      console.log('⚠️ Saving interrupted session (best effort)');
+      console.log('⚠️ Saving interrupted session with enhanced data (best effort)');
 
       const sessionDetails: SessionDetails = {
         ...partialSessionDetails,
@@ -274,13 +318,13 @@ class SessionService {
       );
 
       if (result.success) {
-        console.log('✅ Interrupted session saved successfully');
+        console.log('✅ Interrupted session with enhanced data saved successfully');
       } else {
         console.warn('⚠️ Failed to save interrupted session:', result.error);
       }
 
     } catch (error) {
-      console.warn('⚠️ Best-effort save failed:', error);
+      console.warn('⚠️ Best-effort enhanced save failed:', error);
       // Don't throw - this is a best-effort operation
     }
   }

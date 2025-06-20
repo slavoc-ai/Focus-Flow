@@ -1,7 +1,8 @@
 import React from 'react';
 import { Modal, ModalHeader, ModalFooter } from '../ui/Modal';
-import { Check, Circle, Clock, Star } from 'lucide-react';
+import { Check, Circle, Clock, Star, Edit3 } from 'lucide-react';
 import { cn } from '../../lib/utils';
+import { EditableTaskField } from './EditableTaskField';
 
 // Enhanced interface for modal tasks with richer structure
 export interface SubTaskForModal {
@@ -20,8 +21,11 @@ interface FullPlanModalProps {
   tasks: SubTaskForModal[];
   mainTask: string;
   onTaskSelect?: (taskId: string) => void;
-  // NEW: Interactive functionality
+  // Interactive functionality
   onToggleTask?: (taskId: string, newCompletedStatus: boolean) => void;
+  // NEW: In-session editing functionality
+  onTaskTextUpdate?: (taskId: string, field: 'title' | 'action' | 'details', newValue: string | null) => void;
+  onTaskTimeUpdate?: (taskId: string, newTime: number | null) => void;
   readOnly?: boolean; // Disable interactions when previewing
 }
 
@@ -32,6 +36,8 @@ export const FullPlanModal: React.FC<FullPlanModalProps> = ({
   mainTask,
   onTaskSelect,
   onToggleTask,
+  onTaskTextUpdate,
+  onTaskTimeUpdate,
   readOnly = false
 }) => {
   const completedTasks = tasks.filter(task => task.isCompleted).length;
@@ -51,13 +57,35 @@ export const FullPlanModal: React.FC<FullPlanModalProps> = ({
     }
   };
 
+  // NEW: Handle text field updates
+  const handleTextUpdate = (taskId: string, field: 'title' | 'action' | 'details', newValue: string | null) => {
+    if (!readOnly && onTaskTextUpdate) {
+      onTaskTextUpdate(taskId, field, newValue);
+    }
+  };
+
+  // NEW: Handle time estimate updates
+  const handleTimeUpdate = (taskId: string, newTime: number | null) => {
+    if (!readOnly && onTaskTimeUpdate) {
+      onTaskTimeUpdate(taskId, newTime);
+    }
+  };
+
+  const canEdit = !readOnly && (onTaskTextUpdate || onTaskTimeUpdate);
+
   return (
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={readOnly ? "Plan Preview" : "Full Plan Overview"}
-      description={readOnly ? "View all tasks in this project" : "Review and manage all tasks in your current plan"}
-      className="max-w-3xl"
+      title={readOnly ? "Plan Preview" : canEdit ? "Full Plan Overview (Editable)" : "Full Plan Overview"}
+      description={
+        readOnly 
+          ? "View all tasks in this project" 
+          : canEdit
+          ? "Review, edit, and manage all tasks in your current plan"
+          : "Review and manage all tasks in your current plan"
+      }
+      className="max-w-4xl"
     >
       <div className="space-y-6">
         {/* Plan Header */}
@@ -79,6 +107,12 @@ export const FullPlanModal: React.FC<FullPlanModalProps> = ({
                 <span>Preview Mode</span>
               </span>
             )}
+            {canEdit && (
+              <span className="flex items-center space-x-1 text-accent">
+                <Edit3 className="w-4 h-4" />
+                <span>Editable Mode</span>
+              </span>
+            )}
           </div>
           
           {/* Progress Bar */}
@@ -93,7 +127,7 @@ export const FullPlanModal: React.FC<FullPlanModalProps> = ({
         </div>
 
         {/* Task List */}
-        <div className="space-y-3 max-h-96 overflow-y-auto">
+        <div className="space-y-4 max-h-96 overflow-y-auto">
           {tasks.map((task, index) => (
             <div
               key={task.id}
@@ -146,42 +180,89 @@ export const FullPlanModal: React.FC<FullPlanModalProps> = ({
                 </label>
               </div>
 
-              {/* Enhanced Task Content */}
-              <div className="flex-1 min-w-0">
-                {/* Task Title */}
-                {task.title && (
-                  <h4 className={cn(
-                    "font-bold text-lg leading-tight mb-2",
-                    task.isCompleted
-                      ? "line-through text-muted-foreground"
-                      : "text-card-foreground"
-                  )}>
-                    {task.title}
-                  </h4>
+              {/* Enhanced Task Content with In-Session Editing */}
+              <div className="flex-1 min-w-0 space-y-3">
+                {/* Task Title - Editable if not read-only */}
+                {canEdit && onTaskTextUpdate ? (
+                  <EditableTaskField
+                    value={task.title || ''}
+                    onSave={(newValue) => handleTextUpdate(task.id, 'title', newValue)}
+                    placeholder="Enter task title..."
+                    displayClassName={cn(
+                      "font-bold text-lg leading-tight",
+                      task.isCompleted
+                        ? "line-through text-muted-foreground"
+                        : "text-card-foreground"
+                    )}
+                    emptyText="Click to add title..."
+                  />
+                ) : (
+                  task.title && (
+                    <h4 className={cn(
+                      "font-bold text-lg leading-tight",
+                      task.isCompleted
+                        ? "line-through text-muted-foreground"
+                        : "text-card-foreground"
+                    )}>
+                      {task.title}
+                    </h4>
+                  )
                 )}
                 
-                {/* Immediate Action */}
-                {task.action && (
-                  <p className={cn(
-                    "font-medium mb-2",
-                    task.isCompleted
-                      ? "line-through text-muted-foreground"
-                      : "text-primary"
-                  )}>
-                    {task.action}
-                  </p>
+                {/* Immediate Action - Editable if not read-only */}
+                {canEdit && onTaskTextUpdate ? (
+                  <EditableTaskField
+                    value={task.action || ''}
+                    onSave={(newValue) => handleTextUpdate(task.id, 'action', newValue)}
+                    placeholder="Enter immediate action..."
+                    displayClassName={cn(
+                      "font-medium",
+                      task.isCompleted
+                        ? "line-through text-muted-foreground"
+                        : "text-primary"
+                    )}
+                    emptyText="Click to add action..."
+                  />
+                ) : (
+                  task.action && (
+                    <p className={cn(
+                      "font-medium",
+                      task.isCompleted
+                        ? "line-through text-muted-foreground"
+                        : "text-primary"
+                    )}>
+                      {task.action}
+                    </p>
+                  )
                 )}
                 
-                {/* Detailed Explanation */}
-                {task.details && (
-                  <p className={cn(
-                    "text-sm leading-relaxed mb-2",
-                    task.isCompleted
-                      ? "line-through text-muted-foreground"
-                      : "text-muted-foreground"
-                  )}>
-                    {task.details}
-                  </p>
+                {/* Detailed Explanation - Editable if not read-only */}
+                {canEdit && onTaskTextUpdate ? (
+                  <EditableTaskField
+                    value={task.details || ''}
+                    onSave={(newValue) => handleTextUpdate(task.id, 'details', newValue)}
+                    type="textarea"
+                    multiline={true}
+                    placeholder="Enter detailed explanation..."
+                    displayClassName={cn(
+                      "text-sm leading-relaxed",
+                      task.isCompleted
+                        ? "line-through text-muted-foreground"
+                        : "text-muted-foreground"
+                    )}
+                    emptyText="Click to add details..."
+                  />
+                ) : (
+                  task.details && (
+                    <p className={cn(
+                      "text-sm leading-relaxed",
+                      task.isCompleted
+                        ? "line-through text-muted-foreground"
+                        : "text-muted-foreground"
+                    )}>
+                      {task.details}
+                    </p>
+                  )
                 )}
                 
                 {/* Fallback for backward compatibility */}
@@ -196,12 +277,26 @@ export const FullPlanModal: React.FC<FullPlanModalProps> = ({
                   </p>
                 )}
                 
-                {/* Time Estimate */}
-                {task.estimated_minutes_per_sub_task && (
-                  <p className="text-xs text-muted-foreground mt-2 flex items-center space-x-1">
-                    <Clock className="w-3 h-3" />
-                    <span>~{task.estimated_minutes_per_sub_task} minutes</span>
-                  </p>
+                {/* Time Estimate - Editable if not read-only */}
+                {canEdit && onTaskTimeUpdate ? (
+                  <EditableTaskField
+                    value={task.estimated_minutes_per_sub_task}
+                    onSave={(newValue) => handleTimeUpdate(task.id, newValue as number | null)}
+                    type="number"
+                    numberMin={1}
+                    numberMax={480}
+                    suffix="min"
+                    placeholder="Enter time estimate..."
+                    displayClassName="text-xs text-muted-foreground"
+                    emptyText="Click to add time estimate..."
+                  />
+                ) : (
+                  task.estimated_minutes_per_sub_task && (
+                    <p className="text-xs text-muted-foreground flex items-center space-x-1">
+                      <Clock className="w-3 h-3" />
+                      <span>~{task.estimated_minutes_per_sub_task} minutes</span>
+                    </p>
+                  )
                 )}
               </div>
             </div>
@@ -217,11 +312,19 @@ export const FullPlanModal: React.FC<FullPlanModalProps> = ({
           </div>
         )}
 
-        {/* Read-only Notice */}
+        {/* Mode-specific Notice */}
         {readOnly && (
           <div className="bg-primary/10 border border-primary/20 rounded-lg p-3">
             <p className="text-primary text-sm text-center">
               This is a preview of the project plan. To make changes, start a new session or edit the project.
+            </p>
+          </div>
+        )}
+
+        {canEdit && (
+          <div className="bg-accent/10 border border-accent/20 rounded-lg p-3">
+            <p className="text-accent text-sm text-center">
+              You can edit task content and time estimates directly in this modal. Changes are saved automatically.
             </p>
           </div>
         )}
@@ -231,6 +334,7 @@ export const FullPlanModal: React.FC<FullPlanModalProps> = ({
         <div className="flex justify-between items-center w-full">
           <div className="text-sm text-muted-foreground">
             {!readOnly && onToggleTask && "Click checkboxes to mark tasks as complete"}
+            {canEdit && " • Click on text fields to edit"}
             {readOnly && onTaskSelect && "Click on a task to navigate to it"}
             {readOnly && !onTaskSelect && `${completedTasks}/${tasks.length} tasks completed`}
           </div>

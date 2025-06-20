@@ -7,18 +7,8 @@ import { FullPlanModal, SubTaskForModal } from '../components/deepwork/FullPlanM
 import { Button } from '../components/ui/Button';
 import { Toast } from '../components/ui/Toast';
 import { List, X, Save } from 'lucide-react';
-import { sessionService, SessionDetails, SubTaskUpdate } from '../services/sessionService';
-
-interface SubTask {
-  id: string;
-  title: string; // Enhanced structure
-  action: string; // Enhanced structure
-  details: string; // Enhanced structure
-  estimated_minutes_per_sub_task?: number;
-  isCompleted: boolean;
-  // Keep for backward compatibility
-  sub_task_description?: string;
-}
+import { sessionService, SessionDetails } from '../services/sessionService';
+import { SubTask, SubTaskUpdate } from '../types';
 
 interface SessionData {
   project_id: string;
@@ -50,7 +40,7 @@ const DeepWorkPage: React.FC = () => {
       estimated_minutes_per_sub_task: task.estimatedMinutes || task.estimated_minutes_per_sub_task,
       isCompleted: task.completed || task.isCompleted || false,
       // Keep for backward compatibility
-      sub_task_description: task.sub_task_description || task.description || task.action
+      description: task.sub_task_description || task.description || task.action
     }));
   });
 
@@ -112,6 +102,37 @@ const DeepWorkPage: React.FC = () => {
     }
   };
 
+  // NEW: Handle in-session text editing
+  const handleTaskTextUpdate = (taskId: string, field: 'title' | 'action' | 'details', newValue: string | null) => {
+    console.log('📝 Updating task text in-session:', {
+      taskId: taskId.substring(0, 8) + '...',
+      field,
+      newValueLength: newValue?.length || 0
+    });
+
+    const updatedTasks = subTasks.map(task => 
+      task.id === taskId ? { ...task, [field]: newValue || '' } : task
+    );
+    
+    setSubTasks(updatedTasks);
+    setSessionData(prev => ({ ...prev, subTasks: updatedTasks }));
+  };
+
+  // NEW: Handle in-session time estimate editing
+  const handleTaskTimeUpdate = (taskId: string, newTime: number | null) => {
+    console.log('⏱️ Updating task time estimate in-session:', {
+      taskId: taskId.substring(0, 8) + '...',
+      newTime
+    });
+
+    const updatedTasks = subTasks.map(task => 
+      task.id === taskId ? { ...task, estimated_minutes_per_sub_task: newTime } : task
+    );
+    
+    setSubTasks(updatedTasks);
+    setSessionData(prev => ({ ...prev, subTasks: updatedTasks }));
+  };
+
   // Handle task selection from FullPlanModal
   const handleTaskSelect = (taskId: string) => {
     const taskIndex = subTasks.findIndex(task => task.id === taskId);
@@ -130,7 +151,7 @@ const DeepWorkPage: React.FC = () => {
     }));
   };
 
-  // Save session progress
+  // Save session progress with enhanced sub-task data
   const saveSessionProgress = async (isEndingSession: boolean = false) => {
     if (!user || !projectId || !isProjectInitialized) {
       console.warn('⚠️ Cannot save session: missing user, project ID, or project not initialized');
@@ -148,10 +169,16 @@ const DeepWorkPage: React.FC = () => {
       setIsSaving(true);
       setSaveError(null);
 
-      // Prepare sub-task updates
+      // Prepare enhanced sub-task updates with all editable fields
       const subTaskUpdates: SubTaskUpdate[] = subTasks.map(task => ({
         id: task.id,
-        is_completed: task.isCompleted
+        is_completed: task.isCompleted,
+        title: task.title,
+        action: task.action,
+        details: task.details,
+        estimated_minutes_per_sub_task: task.estimated_minutes_per_sub_task,
+        // Keep description for backward compatibility
+        description: task.description
       }));
 
       // Prepare session details
@@ -163,10 +190,12 @@ const DeepWorkPage: React.FC = () => {
         notes: undefined // Could be added in future
       };
 
-      console.log('💾 Saving enhanced session progress...', {
+      console.log('💾 Saving enhanced session progress with full sub-task data...', {
         projectId,
         subTaskUpdates: subTaskUpdates.length,
-        sessionDetails
+        sessionDetails,
+        hasTextEdits: subTaskUpdates.some(task => task.title || task.action || task.details),
+        hasTimeEdits: subTaskUpdates.some(task => task.estimated_minutes_per_sub_task !== undefined)
       });
 
       const result = await sessionService.saveSessionProgress(
@@ -177,7 +206,7 @@ const DeepWorkPage: React.FC = () => {
       );
 
       if (result.success) {
-        console.log('✅ Enhanced session saved successfully');
+        console.log('✅ Enhanced session saved successfully with full sub-task data');
         if (!isEndingSession) {
           setShowSuccessToast(true);
         }
@@ -198,7 +227,7 @@ const DeepWorkPage: React.FC = () => {
 
   // Handle session end
   const handleEndSession = async () => {
-    console.log('🏁 Ending enhanced session...');
+    console.log('🏁 Ending enhanced session with full sub-task data...');
     
     const saveResult = await saveSessionProgress(true);
     
@@ -233,13 +262,18 @@ const DeepWorkPage: React.FC = () => {
       const hasInvalidIds = subTasks.some(task => !task.id || task.id.startsWith('task-'));
       if (hasInvalidIds) return;
 
-      // Best-effort save of current state
+      // Best-effort save of current state with enhanced data
       try {
         await sessionService.saveInterruptedSession(
           projectId,
           subTasks.map(task => ({
             id: task.id,
-            is_completed: task.isCompleted
+            is_completed: task.isCompleted,
+            title: task.title,
+            action: task.action,
+            details: task.details,
+            estimated_minutes_per_sub_task: task.estimated_minutes_per_sub_task,
+            description: task.description
           })),
           {
             pomodoros_completed: sessionData.pomodorosCompleted,
@@ -248,7 +282,7 @@ const DeepWorkPage: React.FC = () => {
           },
           user.id
         );
-        console.log('💾 Interrupted enhanced session saved');
+        console.log('💾 Interrupted enhanced session saved with full sub-task data');
       } catch (error) {
         console.warn('⚠️ Failed to save interrupted enhanced session:', error);
       }
@@ -366,13 +400,15 @@ const DeepWorkPage: React.FC = () => {
             />
           </div>
 
-          {/* Enhanced Task Carousel */}
+          {/* Enhanced Task Carousel with In-Session Editing */}
           {!allTasksCompleted ? (
             <TaskCarousel
               tasks={subTasks}
               currentTaskIndex={currentTaskIndex}
               onTaskComplete={handleTaskComplete}
               onTaskIndexChange={setCurrentTaskIndex}
+              onTaskTextUpdate={handleTaskTextUpdate}
+              onTaskTimeUpdate={handleTaskTimeUpdate}
             />
           ) : (
             <div className="text-center py-12">
@@ -434,7 +470,7 @@ const DeepWorkPage: React.FC = () => {
               <div className="mt-4 pt-4 border-t border-border">
                 <p className="text-xs text-muted-foreground text-center">
                   Enhanced Project ID: {projectId.substring(0, 8)}... • 
-                  {isProjectInitialized ? ' Auto-saving enabled' : ' Initializing project...'}
+                  {isProjectInitialized ? ' Auto-saving enabled with full editing support' : ' Initializing project...'}
                 </p>
               </div>
             )}
@@ -451,13 +487,15 @@ const DeepWorkPage: React.FC = () => {
           title: task.title,
           action: task.action,
           details: task.details,
-          sub_task_description: task.sub_task_description,
+          sub_task_description: task.description,
           estimated_minutes_per_sub_task: task.estimated_minutes_per_sub_task,
           isCompleted: task.isCompleted
         }))}
         mainTask={mainTask}
         onToggleTask={handleTaskComplete} // Enable interactive checkboxes
         onTaskSelect={handleTaskSelect} // Enable task navigation
+        onTaskTextUpdate={handleTaskTextUpdate} // NEW: Enable in-session text editing
+        onTaskTimeUpdate={handleTaskTimeUpdate} // NEW: Enable in-session time editing
         readOnly={false} // This is an interactive session modal
       />
 
@@ -467,7 +505,7 @@ const DeepWorkPage: React.FC = () => {
           <Toast
             variant="success"
             title="Progress Saved"
-            description="Your enhanced session progress has been saved successfully."
+            description="Your enhanced session progress with all edits has been saved successfully."
             onClose={() => setShowSuccessToast(false)}
             duration={3000}
           />

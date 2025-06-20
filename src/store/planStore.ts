@@ -1,31 +1,21 @@
 import { create } from 'zustand';
 import { supabase } from '../lib/supabaseClient';
 import { projectService } from '../services/projectService';
-import { storageService } from '../services/storageService'; // Import updated storage service
-
-interface PlanItem {
-  id: string;
-  title: string; // New: Short headline
-  action: string; // New: Immediate call to action
-  details: string; // New: Longer explanation (replaces description)
-  estimatedMinutes?: number;
-  completed?: boolean;
-  // Keep for backward compatibility
-  description?: string;
-}
+import { storageService } from '../services/storageService';
+import { SubTask } from '../types';
 
 interface PlanState {
   taskDescription: string;
   timeAllocated: number;
   strictTimeAdherence: boolean;
   energyLevel: string;
-  breakdownLevel: string; // New: Task granularity control
-  documentFiles: File[]; // Changed from single document to array
+  breakdownLevel: string; // Task granularity control
+  documentFiles: File[]; // Array of uploaded files
   isLoading: boolean;
   error: string | null;
   currentTip: string;
-  plan: PlanItem[];
-  projectTitle: string; // New: AI-generated project title
+  plan: SubTask[]; // Enhanced SubTask array
+  projectTitle: string; // AI-generated project title
   timeWarning: string | null;
   
   // Project editing state
@@ -40,15 +30,15 @@ interface PlanState {
   setTimeAllocated: (time: number) => void;
   setStrictTimeAdherence: (strict: boolean) => void;
   setEnergyLevel: (level: string) => void;
-  setBreakdownLevel: (level: string) => void; // New
+  setBreakdownLevel: (level: string) => void;
   setDocumentFiles: (files: File[]) => void;
   addDocumentFiles: (files: File[]) => void;
   removeDocumentFile: (fileName: string) => void;
   generatePlan: () => Promise<void>;
-  updatePlan: (plan: PlanItem[]) => void;
-  addPlanTask: (description: string) => void;
+  updatePlan: (plan: SubTask[]) => void;
+  addPlanTask: (title: string, action: string, details: string) => void;
   deletePlanTask: (id: string) => void;
-  updatePlanTask: (id: string, updates: Partial<PlanItem>) => void;
+  updatePlanTask: (id: string, updates: Partial<SubTask>) => void;
   loadExistingProject: (projectId: string, userId: string) => Promise<void>;
   restoreInputsFromPlan: () => void;
   reset: () => void;
@@ -59,13 +49,13 @@ const initialState = {
   timeAllocated: 0, // Changed to 0 for optional time
   strictTimeAdherence: false,
   energyLevel: 'medium',
-  breakdownLevel: 'small', // New: Default to small steps
+  breakdownLevel: 'small', // Default to small steps
   documentFiles: [], // Initialize as empty array
   isLoading: false,
   error: null,
   currentTip: '',
   plan: [],
-  projectTitle: '', // New: Initialize empty
+  projectTitle: '', // Initialize empty
   timeWarning: null,
   isEditingProject: false,
   editingProjectId: null,
@@ -83,7 +73,7 @@ export const usePlanStore = create<PlanState>((set, get) => ({
   
   setEnergyLevel: (level) => set({ energyLevel: level }),
   
-  setBreakdownLevel: (level) => set({ breakdownLevel: level }), // New
+  setBreakdownLevel: (level) => set({ breakdownLevel: level }),
   
   setDocumentFiles: (files) => set({ documentFiles: files }),
   
@@ -299,19 +289,20 @@ export const usePlanStore = create<PlanState>((set, get) => ({
           hasTimeWarning: !!data.timeWarning,
           usingUserKey: data.usingUserKey,
           sessionType: session?.user?.is_anonymous ? 'anonymous' : 'authenticated',
+          userId: session?.user?.id?.substring(0, 8) + '...',
           documentsProcessed: documentFiles.length,
           breakdownLevel: breakdownLevel,
           uploadMethod: useTusUpload ? 'premium-tus' : 'standard-formdata'
         });
 
-        // Transform the AI response into our enhanced plan format
-        const planItems: PlanItem[] = data.plan.map((item: any, index: number) => ({
+        // Transform the AI response into our enhanced SubTask format
+        const planItems: SubTask[] = data.plan.map((item: any, index: number) => ({
           id: `task-${index + 1}`,
           title: item.title || `Task ${index + 1}`,
           action: item.action || item.sub_task_description || '',
           details: item.details || item.sub_task_description || '',
-          estimatedMinutes: item.estimated_minutes_per_sub_task,
-          completed: false,
+          estimated_minutes_per_sub_task: item.estimated_minutes_per_sub_task,
+          isCompleted: false,
           // Keep for backward compatibility
           description: item.sub_task_description
         }));
@@ -347,15 +338,15 @@ export const usePlanStore = create<PlanState>((set, get) => ({
   
   updatePlan: (plan) => set({ plan }),
   
-  addPlanTask: (description) => {
+  addPlanTask: (title, action, details) => {
     const { plan } = get();
-    const newTask: PlanItem = {
+    const newTask: SubTask = {
       id: `task-${Date.now()}`,
-      title: 'New Task',
-      action: description,
-      details: description,
-      completed: false,
-      description // Keep for backward compatibility
+      title,
+      action,
+      details,
+      isCompleted: false,
+      description: details // Keep for backward compatibility
     };
     set({ plan: [...plan, newTask] });
   },
@@ -392,14 +383,14 @@ export const usePlanStore = create<PlanState>((set, get) => ({
       
       const project = result.project;
       
-      // Transform project data into plan store state
-      const planItems: PlanItem[] = project.sub_tasks?.map((task) => ({
+      // Transform project data into enhanced SubTask format
+      const planItems: SubTask[] = project.sub_tasks?.map((task) => ({
         id: task.id,
         title: task.title || 'Task', // Handle legacy data
         action: task.action || task.description,
         details: task.details || task.description,
-        estimatedMinutes: task.estimated_minutes_per_sub_task,
-        completed: task.is_completed,
+        estimated_minutes_per_sub_task: task.estimated_minutes_per_sub_task,
+        isCompleted: task.is_completed,
         description: task.description // Keep for backward compatibility
       })) || [];
       
