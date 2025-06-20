@@ -319,7 +319,7 @@ export const TaskCarousel: React.FC<TaskCarouselProps> = ({
       <div className="text-center mt-4">
         <p className="text-sm text-muted-foreground">
           {tasks.filter(task => task.isCompleted).length} of {tasks.length} tasks completed
-          {onTaskTextUpdate && ' • Click on current task fields to edit'}
+          {onTaskTextUpdate && ''}
         </p>
       </div>
     </div>
