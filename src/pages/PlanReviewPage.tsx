@@ -8,22 +8,17 @@ import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Modal } from '../components/ui/Modal';
 import { Toast } from '../components/ui/Toast';
+import { EditableProjectTitle } from '../components/ui/EditableProjectTitle';
 import { useAuth } from '../contexts/AuthContext';
 import { usePlanStore } from '../store/planStore';
-import { useUiStore } from '../store/uiStore'; // Import the new UI store
+import { useUiStore } from '../store/uiStore';
 import { projectService, ProjectData, SubTaskData } from '../services/projectService';
+import { SubTask } from '../types';
 import { GripVertical, Trash2, Plus, Edit3, Check, X, AlertCircle, Play, Save, RefreshCw, FileText, Sparkles } from 'lucide-react';
 
 interface SortableTaskItemProps {
-  task: {
-    id: string;
-    title: string; // Enhanced structure
-    action: string; // Enhanced structure
-    details: string; // Enhanced structure
-    estimatedMinutes?: number;
-    completed?: boolean;
-  };
-  onEdit: (id: string, newValues: { title: string; action: string; details: string }) => void;
+  task: SubTask;
+  onEdit: (id: string, newValues: { title: string; action: string; details: string; estimated_minutes_per_sub_task?: number | null }) => void;
   onDelete: (id: string) => void;
 }
 
@@ -32,7 +27,8 @@ const SortableTaskItem: React.FC<SortableTaskItemProps> = ({ task, onEdit, onDel
   const [editValues, setEditValues] = useState({
     title: task.title,
     action: task.action,
-    details: task.details
+    details: task.details,
+    estimated_minutes_per_sub_task: task.estimated_minutes_per_sub_task || null
   });
   
   const {
@@ -61,7 +57,8 @@ const SortableTaskItem: React.FC<SortableTaskItemProps> = ({ task, onEdit, onDel
     setEditValues({
       title: task.title,
       action: task.action,
-      details: task.details
+      details: task.details,
+      estimated_minutes_per_sub_task: task.estimated_minutes_per_sub_task || null
     });
     setIsEditing(false);
   };
@@ -114,6 +111,18 @@ const SortableTaskItem: React.FC<SortableTaskItemProps> = ({ task, onEdit, onDel
               placeholder="Detailed explanation..."
               className="w-full min-h-[80px] px-3 py-2 bg-card border border-input rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring placeholder:text-muted-foreground text-card-foreground transition-colors duration-200"
             />
+            <Input
+              type="number"
+              value={editValues.estimated_minutes_per_sub_task || ''}
+              onChange={(e) => setEditValues(prev => ({ 
+                ...prev, 
+                estimated_minutes_per_sub_task: e.target.value ? parseInt(e.target.value) : null 
+              }))}
+              onKeyDown={handleKeyPress}
+              placeholder="Time estimate (minutes)..."
+              min="1"
+              max="480"
+            />
             <div className="flex items-center gap-2">
               <Button
                 size="sm"
@@ -150,10 +159,10 @@ const SortableTaskItem: React.FC<SortableTaskItemProps> = ({ task, onEdit, onDel
             </p>
             
             {/* Time Estimate */}
-            {task.estimatedMinutes && (
+            {task.estimated_minutes_per_sub_task && (
               <div className="flex items-center space-x-2 text-xs text-muted-foreground">
                 <span className="bg-muted px-2 py-1 rounded-full">
-                  ~{task.estimatedMinutes} minutes
+                  ~{task.estimated_minutes_per_sub_task} minutes
                 </span>
               </div>
             )}
@@ -191,7 +200,7 @@ const PlanReviewPage: React.FC = () => {
   const { user } = useAuth();
   const { 
     plan, 
-    projectTitle, // NEW: AI-generated project title
+    projectTitle,
     timeWarning, 
     updatePlan, 
     addPlanTask, 
@@ -201,19 +210,20 @@ const PlanReviewPage: React.FC = () => {
     timeAllocated,
     energyLevel,
     strictTimeAdherence,
-    documentFiles, // Now an array
+    documentFiles,
     isEditingProject,
     editingProjectId,
     loadExistingProject,
     restoreInputsFromPlan
   } = usePlanStore();
 
-  const { setCameFromReviewPage } = useUiStore(); // Use the new UI store
+  const { setCameFromReviewPage } = useUiStore();
   
   const [showDeleteModal, setShowDeleteModal] = useState<string | null>(null);
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [newTaskAction, setNewTaskAction] = useState('');
   const [newTaskDetails, setNewTaskDetails] = useState('');
+  const [newTaskTime, setNewTaskTime] = useState<number | null>(null);
   const [showAddTask, setShowAddTask] = useState(false);
   
   // Project saving state
@@ -221,6 +231,14 @@ const PlanReviewPage: React.FC = () => {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [showSuccessToast, setShowSuccessToast] = useState(false);
   const [projectId, setProjectId] = useState<string | null>(editingProjectId);
+
+  // NEW: Project title editing state
+  const [currentProjectTitle, setCurrentProjectTitle] = useState(projectTitle);
+
+  // Update local project title when store changes
+  useEffect(() => {
+    setCurrentProjectTitle(projectTitle);
+  }, [projectTitle]);
 
   // Check if we need to load an existing project
   useEffect(() => {
@@ -234,7 +252,6 @@ const PlanReviewPage: React.FC = () => {
         setSaveError('Failed to load project for editing');
       });
     } else if (location.state?.plan && !isEditingProject) {
-      // This is coming from a fresh plan generation
       console.log('📋 Using fresh plan data from navigation state');
       setProjectId(null);
     }
@@ -258,7 +275,7 @@ const PlanReviewPage: React.FC = () => {
     }
   };
 
-  const handleEditTask = (id: string, newValues: { title: string; action: string; details: string }) => {
+  const handleEditTask = (id: string, newValues: { title: string; action: string; details: string; estimated_minutes_per_sub_task?: number | null }) => {
     updatePlanTask(id, newValues);
   };
 
@@ -276,12 +293,14 @@ const PlanReviewPage: React.FC = () => {
   const handleAddTask = () => {
     if (newTaskTitle.trim() && newTaskAction.trim()) {
       // Create enhanced task structure
-      const newTask = {
+      const newTask: SubTask = {
         id: `task-${Date.now()}`,
         title: newTaskTitle.trim(),
         action: newTaskAction.trim(),
         details: newTaskDetails.trim() || newTaskAction.trim(),
-        completed: false
+        estimated_minutes_per_sub_task: newTaskTime,
+        isCompleted: false,
+        description: newTaskDetails.trim() || newTaskAction.trim() // Backward compatibility
       };
       
       updatePlan([...plan, newTask]);
@@ -290,7 +309,42 @@ const PlanReviewPage: React.FC = () => {
       setNewTaskTitle('');
       setNewTaskAction('');
       setNewTaskDetails('');
+      setNewTaskTime(null);
       setShowAddTask(false);
+    }
+  };
+
+  // NEW: Handle project title save
+  const handleProjectTitleSave = async (newTitle: string) => {
+    console.log('📝 Saving project title:', newTitle);
+    
+    try {
+      // Update local state immediately for responsive UI
+      setCurrentProjectTitle(newTitle);
+      
+      // If editing existing project, save to database
+      if (isEditingProject && editingProjectId && user) {
+        const result = await projectService.updateProject(
+          editingProjectId,
+          { title: newTitle },
+          user.id
+        );
+        
+        if (!result.success) {
+          throw new Error(result.error || 'Failed to update project title');
+        }
+        
+        console.log('✅ Project title saved to database');
+      }
+      
+      // Update the plan store (for new projects, this will be used when saving)
+      usePlanStore.setState({ projectTitle: newTitle });
+      
+    } catch (error) {
+      console.error('❌ Error saving project title:', error);
+      // Revert on error
+      setCurrentProjectTitle(projectTitle);
+      throw error; // Re-throw to let EditableProjectTitle handle the error
     }
   };
 
@@ -306,16 +360,13 @@ const PlanReviewPage: React.FC = () => {
 
       console.log('💾 Saving enhanced project as draft...');
 
-      // Prepare project data with AI-generated title
+      // Prepare project data with current title
       const projectData: ProjectData = {
-        title: projectTitle || (taskDescription.length > 50 ? taskDescription.substring(0, 50) + '...' : taskDescription),
+        title: currentProjectTitle || (taskDescription.length > 50 ? taskDescription.substring(0, 50) + '...' : taskDescription),
         original_query: taskDescription,
         allocated_time_minutes: timeAllocated || 0,
         energy_level: energyLevel as 'low' | 'medium' | 'high',
         strict_time_adherence: strictTimeAdherence,
-        // For multi-file support, we'll let the service handle document metadata
-        document_name: undefined,
-        document_text: undefined
       };
 
       // Prepare enhanced sub-tasks data
@@ -323,14 +374,14 @@ const PlanReviewPage: React.FC = () => {
         title: task.title,
         action: task.action,
         details: task.details,
-        estimated_minutes_per_sub_task: task.estimatedMinutes
+        estimated_minutes_per_sub_task: task.estimated_minutes_per_sub_task
       }));
 
       const result = await projectService.saveNewProjectAndPlan(
         projectData,
         subTasksData,
         user.id,
-        documentFiles // Pass the files array for metadata
+        documentFiles
       );
 
       if (result.success && result.project) {
@@ -367,12 +418,11 @@ const PlanReviewPage: React.FC = () => {
         console.log('📝 Updating existing enhanced project before starting session...');
         
         const projectData = {
-          title: projectTitle || (taskDescription.length > 50 ? taskDescription.substring(0, 50) + '...' : taskDescription),
+          title: currentProjectTitle || (taskDescription.length > 50 ? taskDescription.substring(0, 50) + '...' : taskDescription),
           original_query: taskDescription,
           allocated_time_minutes: timeAllocated || 0,
           energy_level: energyLevel as 'low' | 'medium' | 'high',
           strict_time_adherence: strictTimeAdherence,
-          // Note: For existing projects, we can't update document info since files aren't stored
         };
 
         const updateResult = await projectService.updateProject(editingProjectId, projectData, user.id);
@@ -382,14 +432,13 @@ const PlanReviewPage: React.FC = () => {
         }
 
         finalProjectId = editingProjectId;
-        // For existing projects, use the plan state (which has database IDs)
         finalPlanData = plan.map(task => ({
           id: task.id,
           title: task.title,
           action: task.action,
           details: task.details,
-          estimated_minutes_per_sub_task: task.estimatedMinutes,
-          isCompleted: task.completed || false
+          estimated_minutes_per_sub_task: task.estimated_minutes_per_sub_task,
+          isCompleted: task.isCompleted || false
         }));
         console.log('✅ Enhanced project updated successfully:', finalProjectId);
       } else {
@@ -397,26 +446,25 @@ const PlanReviewPage: React.FC = () => {
         console.log('💾 Creating new enhanced project before starting session...');
         
         const projectData: ProjectData = {
-          title: projectTitle || (taskDescription.length > 50 ? taskDescription.substring(0, 50) + '...' : taskDescription),
+          title: currentProjectTitle || (taskDescription.length > 50 ? taskDescription.substring(0, 50) + '...' : taskDescription),
           original_query: taskDescription,
           allocated_time_minutes: timeAllocated || 0,
           energy_level: energyLevel as 'low' | 'medium' | 'high',
           strict_time_adherence: strictTimeAdherence,
-          // Document metadata will be handled by the service
         };
 
         const subTasksData: Omit<SubTaskData, 'order_index'>[] = plan.map(task => ({
           title: task.title,
           action: task.action,
           details: task.details,
-          estimated_minutes_per_sub_task: task.estimatedMinutes
+          estimated_minutes_per_sub_task: task.estimated_minutes_per_sub_task
         }));
 
         const result = await projectService.saveNewProjectAndPlan(
           projectData,
           subTasksData,
           user.id,
-          documentFiles // Pass files for metadata
+          documentFiles
         );
 
         if (!result.success || !result.project) {
@@ -424,10 +472,9 @@ const PlanReviewPage: React.FC = () => {
         }
 
         finalProjectId = result.project.id;
-        // For new projects, use the sub_tasks from the database result (which have database IDs)
         finalPlanData = result.project.sub_tasks?.map(dbTask => ({
           id: dbTask.id,
-          title: dbTask.title || dbTask.description, // Handle legacy data
+          title: dbTask.title || dbTask.description,
           action: dbTask.action || dbTask.description,
           details: dbTask.details || dbTask.description,
           estimated_minutes_per_sub_task: dbTask.estimated_minutes_per_sub_task,
@@ -439,13 +486,13 @@ const PlanReviewPage: React.FC = () => {
       // Navigate to deep work page with enhanced data
       const sessionData = {
         plan: finalPlanData,
-        mainTask: projectTitle || taskDescription || 'Deep Work Session',
-        projectId: finalProjectId, // Always pass the project ID
+        mainTask: currentProjectTitle || taskDescription || 'Deep Work Session',
+        projectId: finalProjectId,
         originalQuery: taskDescription,
         timeAllocated: timeAllocated || 0,
         energyLevel,
         strictTimeAdherence,
-        documentFiles: documentFiles.map(f => f.name), // Pass file names for reference
+        documentFiles: documentFiles.map(f => f.name),
       };
 
       navigate('/deep-work', { state: sessionData });
@@ -459,9 +506,7 @@ const PlanReviewPage: React.FC = () => {
   };
 
   const handleBackToHome = () => {
-    // Set the flag in UI store before navigating
     setCameFromReviewPage(true);
-    // Restore inputs and navigate back to home
     restoreInputsFromPlan();
     navigate('/');
   };
@@ -485,27 +530,27 @@ const PlanReviewPage: React.FC = () => {
   return (
     <div className="max-w-4xl mx-auto space-y-8">
       <div className="bg-card rounded-lg shadow-lg p-6 border border-border">
-        {/* Enhanced Header */}
+        {/* Enhanced Header with Editable Project Title */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex-1">
-            <div className="flex items-center space-x-3 mb-2">
+            <div className="flex items-center space-x-3 mb-4">
               <Sparkles className="w-6 h-6 text-primary" />
               <h2 className="text-2xl font-bold text-card-foreground">
                 {isEditingProject ? 'Edit Your Plan' : 'Review Your Enhanced Plan'}
               </h2>
             </div>
             
-            {/* AI-Generated Project Title */}
-            {projectTitle && (
-              <div className="bg-primary/10 border border-primary/20 rounded-lg p-3 mb-3">
-                <p className="text-sm text-primary font-medium mb-1">
-                  🎯 AI-Generated Project Title:
-                </p>
-                <h3 className="text-lg font-semibold text-primary">
-                  {projectTitle}
-                </h3>
-              </div>
-            )}
+            {/* Editable Project Title */}
+            <div className="mb-4">
+              <EditableProjectTitle
+                value={currentProjectTitle}
+                onSave={handleProjectTitleSave}
+                placeholder="Enter project title..."
+                showAiIcon={!isEditingProject && !!projectTitle}
+                disabled={isSaving}
+                className="mb-2"
+              />
+            </div>
             
             <p className="text-muted-foreground text-sm">
               {isEditingProject 
@@ -627,6 +672,14 @@ const PlanReviewPage: React.FC = () => {
                 onChange={(e) => setNewTaskDetails(e.target.value)}
                 className="w-full min-h-[80px] px-3 py-2 bg-card border border-input rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring placeholder:text-muted-foreground text-card-foreground transition-colors duration-200"
               />
+              <Input
+                type="number"
+                placeholder="Time estimate (minutes, optional)"
+                value={newTaskTime || ''}
+                onChange={(e) => setNewTaskTime(e.target.value ? parseInt(e.target.value) : null)}
+                min="1"
+                max="480"
+              />
               <div className="flex items-center gap-3">
                 <Button
                   onClick={handleAddTask}
@@ -642,6 +695,7 @@ const PlanReviewPage: React.FC = () => {
                     setNewTaskTitle('');
                     setNewTaskAction('');
                     setNewTaskDetails('');
+                    setNewTaskTime(null);
                   }}
                 >
                   <X className="w-4 h-4 mr-2" />

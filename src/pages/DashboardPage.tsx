@@ -5,6 +5,7 @@ import { Button } from '../components/ui/Button';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
 import { Toast } from '../components/ui/Toast';
+import { EditableProjectTitle } from '../components/ui/EditableProjectTitle';
 import { 
   Play, 
   TrendingUp, 
@@ -76,6 +77,9 @@ const DashboardPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [showSuccessToast, setShowSuccessToast] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
+
+  // NEW: Project title editing state
+  const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
 
   // Check for session completion message
   useEffect(() => {
@@ -234,14 +238,12 @@ const DashboardPage: React.FC = () => {
       state: {
         plan: project.sub_tasks?.map(task => ({
           id: task.id,
-          // ✅ FIXED: Map enhanced structure fields with fallbacks
           title: task.title || 'Task',
           action: task.action || task.description,
           details: task.details || task.description,
           estimated_minutes_per_sub_task: task.estimated_minutes_per_sub_task,
           isCompleted: task.is_completed,
-          // Keep for backward compatibility
-          sub_task_description: task.description
+          description: task.description
         })),
         mainTask: project.title,
         projectId: project.id,
@@ -253,6 +255,34 @@ const DashboardPage: React.FC = () => {
         documentText: project.document_text
       }
     });
+  };
+
+  // NEW: Handle project title save
+  const handleProjectTitleSave = async (projectId: string, newTitle: string) => {
+    if (!user) return;
+
+    try {
+      console.log('📝 Saving project title from dashboard:', { projectId, newTitle });
+      
+      const result = await projectService.updateProject(
+        projectId,
+        { title: newTitle },
+        user.id
+      );
+      
+      if (result.success) {
+        setSuccessMessage('Project title updated successfully');
+        setShowSuccessToast(true);
+        await loadDashboardData(); // Reload to get updated data
+      } else {
+        throw new Error(result.error || 'Failed to update project title');
+      }
+    } catch (error) {
+      console.error('❌ Error updating project title:', error);
+      throw error; // Re-throw to let EditableProjectTitle handle the error
+    } finally {
+      setEditingProjectId(null);
+    }
   };
 
   const getStatusBadge = (status: string) => {
@@ -492,9 +522,15 @@ const DashboardPage: React.FC = () => {
                     <div key={project.id} className="flex items-center justify-between p-4 border border-border rounded-lg hover:bg-muted/50 transition-colors">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center space-x-3 mb-2">
-                          <h4 className="font-semibold text-card-foreground truncate">
-                            {project.title}
-                          </h4>
+                          {/* Editable Project Title */}
+                          <EditableProjectTitle
+                            value={project.title}
+                            onSave={(newTitle) => handleProjectTitleSave(project.id, newTitle)}
+                            placeholder="Enter project title..."
+                            displayClassName="font-semibold text-card-foreground truncate"
+                            disabled={editingProjectId === project.id}
+                            className="flex-1"
+                          />
                           {getStatusBadge(project.status)}
                         </div>
                         
@@ -637,7 +673,7 @@ const DashboardPage: React.FC = () => {
         <div className="fixed top-4 right-4 z-50">
           <Toast
             variant="success"
-            title="Session Completed!"
+            title="Success!"
             description={successMessage}
             onClose={() => setShowSuccessToast(false)}
             duration={5000}

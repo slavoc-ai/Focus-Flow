@@ -7,6 +7,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter }
 import { Badge } from '../components/ui/Badge';
 import { Toast } from '../components/ui/Toast';
 import { FullPlanModal, SubTaskForModal } from '../components/deepwork/FullPlanModal';
+import { EditableProjectTitle } from '../components/ui/EditableProjectTitle';
 import { 
   Play, 
   Edit3, 
@@ -48,7 +49,7 @@ const ProjectListPage: React.FC = () => {
   const [showSuccessToast, setShowSuccessToast] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
   
-  // NEW: Filtering and preview state
+  // Filtering and preview state
   const [filters, setFilters] = useState<ProjectFilters>({
     status: 'active',
     searchTerm: '',
@@ -56,6 +57,9 @@ const ProjectListPage: React.FC = () => {
   });
   const [previewingProject, setPreviewingProject] = useState<Project | null>(null);
   const [showFilters, setShowFilters] = useState(false);
+
+  // NEW: Project title editing state
+  const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
 
   // Load projects on component mount and when filters change
   useEffect(() => {
@@ -117,19 +121,16 @@ const ProjectListPage: React.FC = () => {
   const handleStartSession = (project: ProjectWithStats) => {
     console.log('🚀 Starting session from ProjectListPage with enhanced mapping');
     
-    // Navigate to deep work page with ENHANCED data structure mapping
     navigate('/deep-work', {
       state: {
         plan: project.sub_tasks?.map(task => ({
           id: task.id,
-          // ✅ FIXED: Map enhanced structure fields with fallbacks
           title: task.title || 'Task',
           action: task.action || task.description,
           details: task.details || task.description,
           estimated_minutes_per_sub_task: task.estimated_minutes_per_sub_task,
           isCompleted: task.is_completed,
-          // Keep for backward compatibility
-          sub_task_description: task.description
+          description: task.description
         })),
         mainTask: project.title,
         projectId: project.id,
@@ -144,18 +145,15 @@ const ProjectListPage: React.FC = () => {
   };
 
   const handleEditProject = (project: ProjectWithStats) => {
-    // Navigate to plan review page for editing
     navigate('/plan-review', {
       state: {
         plan: project.sub_tasks?.map(task => ({
           id: task.id,
-          // ✅ FIXED: Map enhanced structure for editing
           title: task.title || 'Task',
           action: task.action || task.description,
           details: task.details || task.description,
           estimatedMinutes: task.estimated_minutes_per_sub_task,
           completed: task.is_completed,
-          // Keep for backward compatibility
           description: task.description
         })),
         mainTask: project.title,
@@ -190,24 +188,49 @@ const ProjectListPage: React.FC = () => {
     }
   };
 
-  // NEW: Handle project title click for preview
+  // Handle project title click for preview
   const handleProjectPreview = async (project: ProjectWithStats) => {
     try {
       console.log('👁️ Previewing project:', project.id);
       
-      // Fetch full project details if needed
       const result = await projectService.getProjectById(project.id, user.id);
       
       if (result.success && result.project) {
         setPreviewingProject(result.project);
       } else {
-        // Fallback to current project data
         setPreviewingProject(project);
       }
     } catch (error) {
       console.error('❌ Error loading project for preview:', error);
-      // Fallback to current project data
       setPreviewingProject(project);
+    }
+  };
+
+  // NEW: Handle project title save
+  const handleProjectTitleSave = async (projectId: string, newTitle: string) => {
+    if (!user) return;
+
+    try {
+      console.log('📝 Saving project title:', { projectId, newTitle });
+      
+      const result = await projectService.updateProject(
+        projectId,
+        { title: newTitle },
+        user.id
+      );
+      
+      if (result.success) {
+        setSuccessMessage('Project title updated successfully');
+        setShowSuccessToast(true);
+        await loadProjects(); // Reload to get updated data
+      } else {
+        throw new Error(result.error || 'Failed to update project title');
+      }
+    } catch (error) {
+      console.error('❌ Error updating project title:', error);
+      throw error; // Re-throw to let EditableProjectTitle handle the error
+    } finally {
+      setEditingProjectId(null);
     }
   };
 
@@ -251,7 +274,7 @@ const ProjectListPage: React.FC = () => {
     }
   };
 
-  // NEW: Filter options
+  // Filter options
   const statusOptions = [
     { value: 'active', label: 'Active Projects', icon: Activity },
     { value: 'completed', label: 'Completed Projects', icon: CheckCircle2 },
@@ -422,12 +445,14 @@ const ProjectListPage: React.FC = () => {
               <CardHeader>
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
-                    <CardTitle 
-                      className="text-lg line-clamp-2 cursor-pointer hover:text-primary transition-colors"
-                      onClick={() => handleProjectPreview(project)}
-                    >
-                      {project.title}
-                    </CardTitle>
+                    {/* Editable Project Title */}
+                    <EditableProjectTitle
+                      value={project.title}
+                      onSave={(newTitle) => handleProjectTitleSave(project.id, newTitle)}
+                      placeholder="Enter project title..."
+                      displayClassName="text-lg line-clamp-2 cursor-pointer hover:text-primary transition-colors"
+                      disabled={editingProjectId === project.id}
+                    />
                     <CardDescription className="mt-2 line-clamp-2">
                       {project.original_query}
                     </CardDescription>
