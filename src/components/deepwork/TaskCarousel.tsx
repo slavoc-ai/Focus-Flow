@@ -74,8 +74,7 @@ export const TaskCarousel: React.FC<TaskCarouselProps> = ({
   }
 
   return (
-      
-      {/* Carousel Container */}
+         {/* Carousel Container */}
       <div className="relative overflow-hidden">
         <div
           ref={carouselRef}
