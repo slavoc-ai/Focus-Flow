@@ -276,7 +276,7 @@ export const TaskCarousel: React.FC<TaskCarouselProps> = ({
                     <div className="flex items-center justify-center">
                       <div className="w-2 h-2 bg-primary rounded-full animate-pulse" />
                       <span className="ml-2 text-xs font-medium text-primary">
-                        Current Task {onTaskTextUpdate ? '(Editable)' : ''}
+                        Current Task {onTaskTextUpdate ? '' : ''}
                       </span>
                     </div>
                   )}
