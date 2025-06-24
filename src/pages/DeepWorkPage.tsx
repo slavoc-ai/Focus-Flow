@@ -719,6 +719,10 @@ const DeepWorkPage: React.FC = () => {
         onTaskTextUpdate={handleTaskTextUpdate} // NEW: Enable text editing
         onTaskTimeUpdate={handleTaskTimeUpdate} // NEW: Enable time editing
         readOnly={false} // This is an interactive session modal
+        onRefinePlan={() => {
+          setShowFullPlanModal(false);
+          setIsCoPilotModalOpen(true);
+        }}
       />
 
       {/* Success Toast */}
