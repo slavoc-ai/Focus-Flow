@@ -1,6 +1,8 @@
 import React, { useEffect, useRef } from 'react';
-import { Check, Circle } from 'lucide-react';
+import { Check, Circle, Clock } from 'lucide-react';
 import { cn } from '../../lib/utils';
+import { EditableTaskField } from '../ui/EditableTaskField';
+import { EditableNumberField } from '../ui/EditableNumberField';
 
 interface SubTask {
   id: string;
@@ -17,13 +19,17 @@ interface TaskCarouselProps {
   currentTaskIndex: number;
   onTaskComplete: (taskId: string, completed: boolean) => void;
   onTaskIndexChange: (index: number) => void;
+  onTaskTextUpdate?: (taskId: string, field: 'title' | 'action' | 'details', newValue: string) => void;
+  onTaskTimeUpdate?: (taskId: string, newTime: number | null) => void;
 }
 
 export const TaskCarousel: React.FC<TaskCarouselProps> = ({
   tasks,
   currentTaskIndex,
   onTaskComplete,
-  onTaskIndexChange
+  onTaskIndexChange,
+  onTaskTextUpdate,
+  onTaskTimeUpdate
 }) => {
   const carouselRef = useRef<HTMLDivElement>(null);
 
@@ -50,6 +56,24 @@ export const TaskCarousel: React.FC<TaskCarouselProps> = ({
   // Handle manual task selection
   const handleTaskSelect = (index: number) => {
     onTaskIndexChange(index);
+  };
+
+  // Handle text field updates
+  const handleTextUpdate = (taskId: string, field: 'title' | 'action' | 'details') => {
+    return (newValue: string) => {
+      if (onTaskTextUpdate) {
+        onTaskTextUpdate(taskId, field, newValue);
+      }
+    };
+  };
+
+  // Handle time estimate updates
+  const handleTimeUpdate = (taskId: string) => {
+    return (newTime: number | null) => {
+      if (onTaskTimeUpdate) {
+        onTaskTimeUpdate(taskId, newTime);
+      }
+    };
   };
 
   if (tasks.length === 0) {
@@ -157,10 +181,18 @@ export const TaskCarousel: React.FC<TaskCarouselProps> = ({
                     </button>
                   </div>
 
-                  {/* Enhanced Task Content */}
+                  {/* Enhanced Task Content with Inline Editing for Active Task */}
                   <div className="mb-4 space-y-3">
                     {/* Task Title */}
-                    {task.title && (
+                    {isActive && onTaskTextUpdate ? (
+                      <EditableTaskField
+                        value={task.title || 'Task'}
+                        onSave={handleTextUpdate(task.id, 'title')}
+                        placeholder="Enter task title..."
+                        variant="title"
+                        maxLength={100}
+                      />
+                    ) : (
                       <h4 className={cn(
                         "font-bold text-lg leading-tight",
                         isCompleted 
@@ -168,12 +200,20 @@ export const TaskCarousel: React.FC<TaskCarouselProps> = ({
                           : "text-card-foreground",
                         isActive && "text-primary"
                       )}>
-                        {task.title}
+                        {task.title || 'Task'}
                       </h4>
                     )}
                     
                     {/* Immediate Action */}
-                    {task.action && (
+                    {isActive && onTaskTextUpdate ? (
+                      <EditableTaskField
+                        value={task.action || task.sub_task_description || ''}
+                        onSave={handleTextUpdate(task.id, 'action')}
+                        placeholder="Enter immediate action..."
+                        variant="action"
+                        maxLength={200}
+                      />
+                    ) : (
                       <p className={cn(
                         "font-medium",
                         isCompleted 
@@ -181,33 +221,51 @@ export const TaskCarousel: React.FC<TaskCarouselProps> = ({
                           : "text-primary",
                         isActive && "font-semibold"
                       )}>
-                        {task.action}
+                        {task.action || task.sub_task_description || ''}
                       </p>
                     )}
                     
                     {/* Detailed Explanation */}
-                    {task.details && (
-                      <p className={cn(
-                        "text-sm leading-relaxed",
-                        isCompleted 
-                          ? "line-through text-muted-foreground"
-                          : "text-muted-foreground"
-                      )}>
-                        {task.details}
-                      </p>
+                    {isActive && onTaskTextUpdate ? (
+                      <EditableTaskField
+                        value={task.details || task.sub_task_description || ''}
+                        onSave={handleTextUpdate(task.id, 'details')}
+                        placeholder="Enter detailed explanation..."
+                        variant="details"
+                        multiline={true}
+                        maxLength={500}
+                      />
+                    ) : (
+                      task.details && (
+                        <p className={cn(
+                          "text-sm leading-relaxed",
+                          isCompleted 
+                            ? "line-through text-muted-foreground"
+                            : "text-muted-foreground"
+                        )}>
+                          {task.details}
+                        </p>
+                      )
                     )}
-                    
-                    {/* Fallback for backward compatibility */}
-                    {!task.title && !task.action && !task.details && task.sub_task_description && (
-                      <p className={cn(
-                        "text-sm leading-relaxed",
-                        isCompleted 
-                          ? "line-through text-muted-foreground"
-                          : "text-card-foreground",
-                        isActive && "font-medium"
-                      )}>
-                        {task.sub_task_description}
-                      </p>
+
+                    {/* Time Estimate - Editable for Active Task */}
+                    {isActive && onTaskTimeUpdate ? (
+                      <EditableNumberField
+                        value={task.estimated_minutes_per_sub_task}
+                        onSave={handleTimeUpdate(task.id)}
+                        placeholder="Add time estimate..."
+                        min={1}
+                        max={480}
+                        unit="minutes"
+                        allowNull={true}
+                      />
+                    ) : (
+                      task.estimated_minutes_per_sub_task && (
+                        <div className="flex items-center space-x-2 text-xs text-muted-foreground">
+                          <Clock className="w-3 h-3" />
+                          <span>~{task.estimated_minutes_per_sub_task} minutes</span>
+                        </div>
+                      )
                     )}
                   </div>
 
@@ -216,7 +274,7 @@ export const TaskCarousel: React.FC<TaskCarouselProps> = ({
                     <div className="flex items-center justify-center">
                       <div className="w-2 h-2 bg-primary rounded-full animate-pulse" />
                       <span className="ml-2 text-xs font-medium text-primary">
-                        Current Task
+                        Current Task {onTaskTextUpdate ? '(Editable)' : ''}
                       </span>
                     </div>
                   )}
@@ -260,6 +318,11 @@ export const TaskCarousel: React.FC<TaskCarouselProps> = ({
         <p className="text-sm text-muted-foreground">
           {tasks.filter(task => task.isCompleted).length} of {tasks.length} tasks completed
         </p>
+        {onTaskTextUpdate && (
+          <p className="text-xs text-primary mt-1">
+            Click on the current task fields to edit them
+          </p>
+        )}
       </div>
     </div>
   );
