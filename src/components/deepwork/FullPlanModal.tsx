@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Modal, ModalHeader, ModalFooter } from '../ui/Modal';
-import { Check, Circle, Clock, Star } from 'lucide-react';
+import { Check, Circle, Clock, Star, ChevronDown, ChevronUp } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { EditableTaskField } from '../ui/EditableTaskField';
 import { EditableNumberField } from '../ui/EditableNumberField';
+import { Button } from '../ui/Button';
 
 // Enhanced interface for modal tasks with richer structure
 export interface SubTaskForModal {
@@ -46,13 +47,43 @@ export const FullPlanModal: React.FC<FullPlanModalProps> = ({
     total + (task.estimated_minutes_per_sub_task || 0), 0
   );
 
+  // State to track expanded task IDs
+  const [expandedTaskIds, setExpandedTaskIds] = useState<Set<string>>(new Set());
+  // State to track edit mode
+  const [isEditMode, setIsEditMode] = useState(false);
+
+  const toggleTaskExpansion = (taskId: string) => {
+    setExpandedTaskIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(taskId)) {
+        newSet.delete(taskId);
+      } else {
+        newSet.add(taskId);
+      }
+      return newSet;
+    });
+  };
+
+  const expandAll = () => {
+    setExpandedTaskIds(new Set(tasks.map(task => task.id)));
+  };
+
+  const collapseAll = () => {
+    setExpandedTaskIds(new Set());
+  };
+
+  const toggleEditMode = () => {
+    setIsEditMode(!isEditMode);
+  };
+
   const handleTaskClick = (taskId: string) => {
     if (onTaskSelect) {
       onTaskSelect(taskId);
     }
   };
 
-  const handleTaskToggle = (taskId: string, currentStatus: boolean) => {
+  const handleTaskToggle = (e: React.MouseEvent, taskId: string, currentStatus: boolean) => {
+    e.stopPropagation();
     if (!readOnly && onToggleTask) {
       onToggleTask(taskId, !currentStatus);
     }
@@ -61,7 +92,7 @@ export const FullPlanModal: React.FC<FullPlanModalProps> = ({
   // Handle text field updates
   const handleTextUpdate = (taskId: string, field: 'title' | 'action' | 'details') => {
     return (newValue: string) => {
-      if (!readOnly && onTaskTextUpdate) {
+      if (!readOnly && onTaskTextUpdate && isEditMode) {
         onTaskTextUpdate(taskId, field, newValue);
       }
     };
@@ -70,7 +101,7 @@ export const FullPlanModal: React.FC<FullPlanModalProps> = ({
   // Handle time estimate updates
   const handleTimeUpdate = (taskId: string) => {
     return (newTime: number | null) => {
-      if (!readOnly && onTaskTimeUpdate) {
+      if (!readOnly && onTaskTimeUpdate && isEditMode) {
         onTaskTimeUpdate(taskId, newTime);
       }
     };
@@ -80,249 +111,274 @@ export const FullPlanModal: React.FC<FullPlanModalProps> = ({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={readOnly ? "Plan Preview" : "Full Plan Overview"}
-      description={readOnly ? "View all tasks in this project" : "Review and manage all tasks in your current plan"}
+      title="Full Plan Overview"
+      description="Review and manage all tasks in your current plan"
       className="max-w-3xl"
     >
-      <div className="space-y-6">
-        {/* Plan Header */}
-        <div className="bg-muted rounded-lg p-4">
-          <h3 className="font-semibold text-card-foreground mb-2">
-            {mainTask}
-          </h3>
-          <div className="flex items-center space-x-4 text-sm text-muted-foreground">
-            <span>{completedTasks} of {tasks.length} tasks completed</span>
-            {totalEstimatedTime > 0 && (
-              <span className="flex items-center space-x-1">
-                <Clock className="w-4 h-4" />
-                <span>~{totalEstimatedTime} minutes total</span>
-              </span>
-            )}
-            {readOnly && (
-              <span className="flex items-center space-x-1 text-primary">
-                <Star className="w-4 h-4" />
-                <span>Preview Mode</span>
-              </span>
-            )}
-            {!readOnly && onTaskTextUpdate && (
-              <span className="flex items-center space-x-1 text-primary">
-                <Star className="w-4 h-4" />
-                <span>Editable Mode</span>
-              </span>
-            )}
-          </div>
-          
-          {/* Progress Bar */}
-          <div className="mt-3">
-            <div className="w-full bg-border rounded-full h-2">
-              <div
-                className="bg-primary h-2 rounded-full transition-all duration-300"
-                style={{ width: `${tasks.length > 0 ? (completedTasks / tasks.length) * 100 : 0}%` }}
-              />
-            </div>
-          </div>
+      {/* Plan Header */}
+      <div className="bg-muted rounded-lg p-4 mb-4">
+        <h3 className="font-semibold text-card-foreground mb-2">
+          {mainTask}
+        </h3>
+        <div className="flex items-center justify-between text-sm text-muted-foreground">
+          <span>{completedTasks} of {tasks.length} tasks completed</span>
+          {totalEstimatedTime > 0 && (
+            <span className="flex items-center space-x-1">
+              <Clock className="w-4 h-4" />
+              <span>~{totalEstimatedTime} minutes total</span>
+            </span>
+          )}
         </div>
-
-        {/* Task List */}
-        <div className="space-y-3 max-h-96 overflow-y-auto">
-          {tasks.map((task, index) => (
+        
+        {/* Progress Bar */}
+        <div className="mt-3">
+          <div className="w-full bg-border rounded-full h-2">
             <div
-              key={task.id}
-              className={cn(
-                "flex items-start space-x-3 p-4 rounded-lg border transition-all duration-200",
-                !readOnly && "hover:bg-muted/50",
-                onTaskSelect && readOnly && "cursor-pointer hover:border-primary/50",
-                task.isCompleted
-                  ? "bg-palette-success-50 dark:bg-palette-success-900/20 border-palette-success-200 dark:border-palette-success-800"
-                  : "bg-card border-border"
-              )}
-              onClick={() => readOnly && handleTaskClick(task.id)}
-            >
-              {/* Task Number & Interactive Checkbox */}
-              <div className="flex items-center space-x-3 flex-shrink-0">
-                <span className={cn(
-                  "text-xs font-medium px-2 py-1 rounded-full",
-                  task.isCompleted
-                    ? "bg-palette-success-100 text-palette-success-700 dark:bg-palette-success-900/30 dark:text-palette-success-300"
-                    : "bg-muted text-muted-foreground"
-                )}>
-                  {index + 1}
-                </span>
-                
-                {/* Interactive Checkbox */}
-                <label 
-                  className={cn(
-                    "flex items-center justify-center w-6 h-6 rounded-full transition-all duration-200",
-                    !readOnly && "cursor-pointer hover:scale-110",
-                    readOnly && "cursor-default",
-                    task.isCompleted
-                      ? "bg-palette-success-500 text-white"
-                      : "border-2 border-border hover:border-primary"
-                  )}
-                  htmlFor={`modal-checkbox-${task.id}`}
-                >
-                  <input
-                    id={`modal-checkbox-${task.id}`}
-                    type="checkbox"
-                    checked={task.isCompleted}
-                    onChange={() => handleTaskToggle(task.id, task.isCompleted)}
-                    disabled={readOnly}
-                    className="sr-only" // Hide the actual checkbox, use custom styling
-                  />
-                  {task.isCompleted ? (
-                    <Check className="w-3 h-3" />
-                  ) : (
-                    <Circle className="w-3 h-3 opacity-0" />
-                  )}
-                </label>
-              </div>
-
-              {/* Enhanced Task Content with Editing Support */}
-              <div className="flex-1 min-w-0 space-y-3">
-                {/* Task Title */}
-                {!readOnly && onTaskTextUpdate ? (
-                  <EditableTaskField
-                    value={task.title || 'Task'}
-                    onSave={handleTextUpdate(task.id, 'title')}
-                    placeholder="Enter task title..."
-                    variant="title"
-                    maxLength={100}
-                  />
-                ) : (
-                  task.title && (
-                    <h4 className={cn(
-                      "font-bold text-lg leading-tight mb-2",
-                      task.isCompleted
-                        ? "line-through text-muted-foreground"
-                        : "text-card-foreground"
-                    )}>
-                      {task.title}
-                    </h4>
-                  )
-                )}
-                
-                {/* Immediate Action */}
-                {!readOnly && onTaskTextUpdate ? (
-                  <EditableTaskField
-                    value={task.action || task.sub_task_description || ''}
-                    onSave={handleTextUpdate(task.id, 'action')}
-                    placeholder="Enter immediate action..."
-                    variant="action"
-                    maxLength={200}
-                  />
-                ) : (
-                  task.action && (
-                    <p className={cn(
-                      "font-medium mb-2",
-                      task.isCompleted
-                        ? "line-through text-muted-foreground"
-                        : "text-primary"
-                    )}>
-                      {task.action}
-                    </p>
-                  )
-                )}
-                
-                {/* Detailed Explanation */}
-                {!readOnly && onTaskTextUpdate ? (
-                  <EditableTaskField
-                    value={task.details || task.sub_task_description || ''}
-                    onSave={handleTextUpdate(task.id, 'details')}
-                    placeholder="Enter detailed explanation..."
-                    variant="details"
-                    multiline={true}
-                    maxLength={500}
-                  />
-                ) : (
-                  task.details && (
-                    <p className={cn(
-                      "text-sm leading-relaxed mb-2",
-                      task.isCompleted
-                        ? "line-through text-muted-foreground"
-                        : "text-muted-foreground"
-                    )}>
-                      {task.details}
-                    </p>
-                  )
-                )}
-                
-                {/* Fallback for backward compatibility */}
-                {!task.title && !task.action && !task.details && task.sub_task_description && (
-                  <p className={cn(
-                    "text-sm leading-relaxed",
-                    task.isCompleted
-                      ? "line-through text-muted-foreground"
-                      : "text-card-foreground"
-                  )}>
-                    {task.sub_task_description}
-                  </p>
-                )}
-                
-                {/* Time Estimate */}
-                {!readOnly && onTaskTimeUpdate ? (
-                  <EditableNumberField
-                    value={task.estimated_minutes_per_sub_task}
-                    onSave={handleTimeUpdate(task.id)}
-                    placeholder="Add time estimate..."
-                    min={1}
-                    max={480}
-                    unit="minutes"
-                    allowNull={true}
-                  />
-                ) : (
-                  task.estimated_minutes_per_sub_task && (
-                    <p className="text-xs text-muted-foreground mt-2 flex items-center space-x-1">
-                      <Clock className="w-3 h-3" />
-                      <span>~{task.estimated_minutes_per_sub_task} minutes</span>
-                    </p>
-                  )
-                )}
-              </div>
-            </div>
-          ))}
+              className="bg-primary h-2 rounded-full transition-all duration-300"
+              style={{ width: `${tasks.length > 0 ? (completedTasks / tasks.length) * 100 : 0}%` }}
+            />
+          </div>
         </div>
+      </div>
 
-        {/* Empty State */}
-        {tasks.length === 0 && (
+      {/* Controls */}
+      <div className="flex justify-between items-center mb-3">
+        <div className="flex space-x-2">
+          <Button variant="ghost" size="sm" onClick={expandAll}>Expand All</Button>
+          <Button variant="ghost" size="sm" onClick={collapseAll}>Collapse All</Button>
+        </div>
+        
+        {!readOnly && onTaskTextUpdate && (
+          <Button 
+            variant="outline" 
+            size="sm"
+            onClick={toggleEditMode}
+            className={cn(
+              "flex items-center space-x-1",
+              isEditMode && "bg-primary/10 border-primary text-primary"
+            )}
+          >
+            <Star className="w-3 h-3" />
+            <span>{isEditMode ? "Editing Mode" : "Enable Editing"}</span>
+          </Button>
+        )}
+      </div>
+
+      {/* Task List - Scrollable Container */}
+      <div className="overflow-y-auto max-h-[50vh] pr-1 mb-4">
+        {tasks.length === 0 ? (
           <div className="text-center py-8">
             <p className="text-muted-foreground">
               No tasks in this plan
             </p>
           </div>
-        )}
-
-        {/* Mode Notice */}
-        {readOnly ? (
-          <div className="bg-primary/10 border border-primary/20 rounded-lg p-3">
-            <p className="text-primary text-sm text-center">
-              This is a preview of the project plan. To make changes, start a new session or edit the project.
-            </p>
-          </div>
         ) : (
-          onTaskTextUpdate && (
-            <div className="bg-primary/10 border border-primary/20 rounded-lg p-3">
-              <p className="text-primary text-sm text-center">
-                You can edit task content directly in this modal. Changes will be saved when you save your session.
-              </p>
-            </div>
-          )
+          <div className="space-y-1">
+            {tasks.map((task, index) => {
+              const isExpanded = expandedTaskIds.has(task.id);
+              
+              return (
+                <div
+                  key={task.id}
+                  className={cn(
+                    "border rounded-lg transition-all duration-200",
+                    task.isCompleted
+                      ? "bg-palette-success-50 dark:bg-palette-success-900/20 border-palette-success-200 dark:border-palette-success-800"
+                      : "bg-card border-border hover:border-primary/50",
+                    onTaskSelect && readOnly && "cursor-pointer hover:border-primary/50"
+                  )}
+                >
+                  {/* Task Header - Always visible */}
+                  <div 
+                    className="flex items-center p-3"
+                    onClick={() => readOnly && onTaskSelect ? handleTaskClick(task.id) : toggleTaskExpansion(task.id)}
+                  >
+                    {/* Task Number & Checkbox */}
+                    <div className="flex items-center space-x-3 flex-shrink-0">
+                      <span className={cn(
+                        "text-xs font-medium px-2 py-1 rounded-full",
+                        task.isCompleted
+                          ? "bg-palette-success-100 text-palette-success-700 dark:bg-palette-success-900/30 dark:text-palette-success-300"
+                          : "bg-muted text-muted-foreground"
+                      )}>
+                        {index + 1}
+                      </span>
+                      
+                      {/* Interactive Checkbox */}
+                      <button 
+                        className={cn(
+                          "flex items-center justify-center w-5 h-5 rounded-full transition-all duration-200",
+                          !readOnly && "cursor-pointer hover:scale-110",
+                          readOnly && "cursor-default",
+                          task.isCompleted
+                            ? "bg-palette-success-500 text-white"
+                            : "border-2 border-border hover:border-primary"
+                        )}
+                        onClick={(e) => handleTaskToggle(e, task.id, task.isCompleted)}
+                        disabled={readOnly}
+                      >
+                        {task.isCompleted ? (
+                          <Check className="w-3 h-3" />
+                        ) : (
+                          <Circle className="w-3 h-3 opacity-0" />
+                        )}
+                      </button>
+                    </div>
+
+                    {/* Task Title */}
+                    <div className="flex-1 mx-2">
+                      {isEditMode && onTaskTextUpdate ? (
+                        <EditableTaskField
+                          value={task.title || `Task ${index + 1}`}
+                          onSave={handleTextUpdate(task.id, 'title')}
+                          placeholder="Enter task title..."
+                          variant="title"
+                          maxLength={100}
+                          displayClassName="py-0 px-0"
+                        />
+                      ) : (
+                        <p className={cn(
+                          "font-medium text-sm",
+                          task.isCompleted
+                            ? "line-through text-muted-foreground"
+                            : "text-card-foreground"
+                        )}>
+                          {task.title || `Task ${index + 1}`}
+                        </p>
+                      )}
+                    </div>
+                    
+                    {/* Time and Expand/Collapse */}
+                    <div className="flex items-center space-x-2 text-muted-foreground">
+                      {task.estimated_minutes_per_sub_task && (
+                        <span className="text-xs">
+                          ~{task.estimated_minutes_per_sub_task} min
+                        </span>
+                      )}
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleTaskExpansion(task.id);
+                        }}
+                        className="p-1 text-muted-foreground hover:text-card-foreground"
+                      >
+                        {isExpanded ? (
+                          <ChevronUp className="w-4 h-4" />
+                        ) : (
+                          <ChevronDown className="w-4 h-4" />
+                        )}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Expanded Content */}
+                  {isExpanded && (
+                    <div className="pl-10 pr-4 pb-3 space-y-2">
+                      {/* Action */}
+                      {isEditMode && onTaskTextUpdate ? (
+                        <EditableTaskField
+                          value={task.action || task.sub_task_description || ''}
+                          onSave={handleTextUpdate(task.id, 'action')}
+                          placeholder="Enter immediate action..."
+                          variant="action"
+                          maxLength={200}
+                          displayClassName="py-0 px-0"
+                        />
+                      ) : (
+                        <p className={cn(
+                          "text-sm font-medium",
+                          task.isCompleted
+                            ? "line-through text-muted-foreground"
+                            : "text-primary"
+                        )}>
+                          {task.action || task.sub_task_description || ''}
+                        </p>
+                      )}
+                      
+                      {/* Details */}
+                      {isEditMode && onTaskTextUpdate ? (
+                        <EditableTaskField
+                          value={task.details || task.sub_task_description || ''}
+                          onSave={handleTextUpdate(task.id, 'details')}
+                          placeholder="Enter detailed explanation..."
+                          variant="details"
+                          multiline={true}
+                          maxLength={500}
+                          displayClassName="py-0 px-0"
+                        />
+                      ) : (
+                        task.details && (
+                          <p className={cn(
+                            "text-sm",
+                            task.isCompleted
+                              ? "line-through text-muted-foreground"
+                              : "text-muted-foreground"
+                          )}>
+                            {task.details}
+                          </p>
+                        )
+                      )}
+                      
+                      {/* Time Estimate */}
+                      {isEditMode && onTaskTimeUpdate ? (
+                        <EditableNumberField
+                          value={task.estimated_minutes_per_sub_task}
+                          onSave={handleTimeUpdate(task.id)}
+                          placeholder="Add time estimate..."
+                          min={1}
+                          max={480}
+                          unit="minutes"
+                          allowNull={true}
+                          displayClassName="py-0 px-0"
+                        />
+                      ) : (
+                        task.estimated_minutes_per_sub_task && (
+                          <p className="text-xs text-muted-foreground mt-2 flex items-center space-x-1">
+                            <Clock className="w-3 h-3" />
+                            <span>~{task.estimated_minutes_per_sub_task} minutes</span>
+                          </p>
+                        )
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         )}
       </div>
+
+      {/* Mode Notice */}
+      {readOnly ? (
+        <div className="bg-primary/10 border border-primary/20 rounded-lg p-3 mb-4">
+          <p className="text-primary text-sm text-center">
+            This is a preview of the project plan. To make changes, start a new session or edit the project.
+          </p>
+        </div>
+      ) : (
+        isEditMode && onTaskTextUpdate && (
+          <div className="bg-primary/10 border border-primary/20 rounded-lg p-3 mb-4">
+            <p className="text-primary text-sm text-center">
+              Editing mode is active. Click on task fields to edit them.
+            </p>
+          </div>
+        )
+      )}
 
       <ModalFooter>
         <div className="flex justify-between items-center w-full">
           <div className="text-sm text-muted-foreground">
             {!readOnly && onToggleTask && "Click checkboxes to mark tasks as complete"}
-            {!readOnly && onTaskTextUpdate && " • Click on task fields to edit them"}
+            {!readOnly && onTaskTextUpdate && isEditMode && " • Click on task fields to edit them"}
             {readOnly && onTaskSelect && "Click on a task to navigate to it"}
             {readOnly && !onTaskSelect && `${completedTasks}/${tasks.length} tasks completed`}
           </div>
-          <button
+          <Button
             onClick={onClose}
             className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
           >
             Close
-          </button>
+          </Button>
         </div>
       </ModalFooter>
     </Modal>
