@@ -4,10 +4,14 @@ import { useAuth } from '../contexts/AuthContext';
 import { PomodoroTimer } from '../components/deepwork/PomodoroTimer';
 import { TaskCarousel } from '../components/deepwork/TaskCarousel';
 import { FullPlanModal, SubTaskForModal } from '../components/deepwork/FullPlanModal';
+import { PlanCoPilot } from '../components/plan/PlanCoPilot';
+import { PlanDiffViewer, Modification } from '../components/plan/PlanDiffViewer';
 import { Button } from '../components/ui/Button';
+import { Modal } from '../components/ui/Modal';
 import { Toast } from '../components/ui/Toast';
-import { List, X, Save } from 'lucide-react';
+import { List, X, Save, Sparkles } from 'lucide-react';
 import { sessionService, SessionDetails, SubTaskUpdate } from '../services/sessionService';
+import { planService } from '../services/planService';
 
 interface SubTask {
   id: string;
@@ -70,8 +74,168 @@ const DeepWorkPage: React.FC = () => {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [showSuccessToast, setShowSuccessToast] = useState(false);
 
+  // Co-pilot local state
+  const [isCoPilotModalOpen, setIsCoPilotModalOpen] = useState(false);
+  const [isCoPilotLoading, setIsCoPilotLoading] = useState(false);
+  const [coPilotModifications, setCoPilotModifications] = useState<{
+    modifications: Modification[];
+    newProjectTitle?: string;
+    explanation?: string;
+  } | null>(null);
+
   // Project initialization state - project should always be initialized when entering this page
   const [isProjectInitialized] = useState(!!projectId);
+
+  // Helper function to apply modifications to the current plan
+  const applyModifications = (currentTasks: SubTask[], modifications: Modification[]): SubTask[] => {
+    let newTasks = [...currentTasks];
+
+    // Process modifications in order
+    for (const mod of modifications) {
+      switch (mod.operation) {
+        case 'update':
+          if (mod.taskId && mod.changes) {
+            const taskIndex = newTasks.findIndex(task => task.id === mod.taskId);
+            if (taskIndex !== -1) {
+              newTasks[taskIndex] = {
+                ...newTasks[taskIndex],
+                title: mod.changes.title || newTasks[taskIndex].title,
+                action: mod.changes.action || newTasks[taskIndex].action,
+                details: mod.changes.details || newTasks[taskIndex].details,
+                estimated_minutes_per_sub_task: mod.changes.estimated_minutes_per_sub_task || newTasks[taskIndex].estimated_minutes_per_sub_task
+              };
+            }
+          }
+          break;
+
+        case 'add':
+          if (mod.newTask) {
+            const newTask: SubTask = {
+              id: mod.newTask.id,
+              title: mod.newTask.title,
+              action: mod.newTask.action,
+              details: mod.newTask.details,
+              estimated_minutes_per_sub_task: mod.newTask.estimated_minutes_per_sub_task,
+              isCompleted: false,
+              sub_task_description: mod.newTask.action // Backward compatibility
+            };
+
+            if (mod.afterTaskId) {
+              const insertIndex = newTasks.findIndex(task => task.id === mod.afterTaskId) + 1;
+              newTasks.splice(insertIndex, 0, newTask);
+            } else {
+              newTasks.unshift(newTask); // Add at beginning
+            }
+          }
+          break;
+
+        case 'delete':
+          if (mod.taskId) {
+            newTasks = newTasks.filter(task => task.id !== mod.taskId);
+          }
+          break;
+
+        case 'reorder':
+          if (mod.newOrder) {
+            const reorderedTasks = mod.newOrder.map(taskId => 
+              newTasks.find(task => task.id === taskId)
+            ).filter(Boolean) as SubTask[];
+            newTasks = reorderedTasks;
+          }
+          break;
+      }
+    }
+
+    return newTasks;
+  };
+
+  // Co-pilot handlers
+  const handleCoPilotCommand = async (command: string) => {
+    setIsCoPilotLoading(true);
+    setCoPilotModifications(null);
+    
+    try {
+      console.log('🤖 Processing Co-pilot command in DeepWorkPage:', command);
+
+      // Prepare current plan for Co-pilot
+      const currentPlan = {
+        project_title: mainTask,
+        sub_tasks: subTasks.map(task => ({
+          id: task.id,
+          title: task.title,
+          action: task.action,
+          details: task.details,
+          estimated_minutes_per_sub_task: task.estimated_minutes_per_sub_task
+        }))
+      };
+
+      // Get document context from location state if available
+      const documentContext = location.state?.documentFiles?.length > 0 
+        ? `Documents processed: ${location.state.documentFiles.join(', ')}`
+        : undefined;
+
+      // Call Co-pilot service
+      const result = await planService.refinePlanWithAI(command, currentPlan, documentContext);
+
+      if (!result.success) {
+        throw new Error(result.error || 'Co-pilot refinement failed');
+      }
+
+      console.log('✅ Co-pilot refinement successful in DeepWorkPage:', {
+        modificationsCount: result.modifications.length,
+        hasNewTitle: !!result.newProjectTitle
+      });
+
+      // Set proposed modifications for review
+      setCoPilotModifications({
+        modifications: result.modifications,
+        newProjectTitle: result.newProjectTitle,
+        explanation: result.explanation
+      });
+
+    } catch (error) {
+      console.error('❌ Co-pilot error in DeepWorkPage:', error);
+      setSaveError(error instanceof Error ? error.message : 'Co-pilot refinement failed');
+    } finally {
+      setIsCoPilotLoading(false);
+    }
+  };
+
+  const handleAcceptModifications = () => {
+    if (!coPilotModifications) return;
+
+    console.log('✅ Applying Co-pilot modifications in DeepWorkPage:', coPilotModifications.modifications.length);
+
+    // Apply modifications to the current plan
+    const updatedTasks = applyModifications(subTasks, coPilotModifications.modifications);
+    
+    // Update local state directly
+    setSubTasks(updatedTasks);
+    
+    // Update session data
+    setSessionData(prev => ({ ...prev, subTasks: updatedTasks }));
+
+    // Update main task if title changed
+    if (coPilotModifications.newProjectTitle) {
+      setSessionData(prev => ({ ...prev, mainTask: coPilotModifications.newProjectTitle! }));
+    }
+
+    // Reset Co-pilot state and close modal
+    setCoPilotModifications(null);
+    setIsCoPilotModalOpen(false);
+
+    // Show success message
+    setShowSuccessToast(true);
+  };
+
+  const handleDiscardModifications = () => {
+    setCoPilotModifications(null); // Just clear the diff, stay in the modal
+  };
+
+  const handleCloseCoPilotModal = () => {
+    setCoPilotModifications(null); // Always clear diffs when closing
+    setIsCoPilotModalOpen(false);
+  };
 
   // Find the next uncompleted task
   const findNextUncompletedTask = () => {
@@ -191,7 +355,7 @@ const DeepWorkPage: React.FC = () => {
         notes: undefined // Could be added in future
       };
 
-      console.log('💾 Saving enhanced session progress with text edits...', {
+      console.log('💾 Saving enhanced session progress with Co-pilot changes...', {
         projectId,
         subTaskUpdates: subTaskUpdates.length,
         sessionDetails,
@@ -206,7 +370,7 @@ const DeepWorkPage: React.FC = () => {
       );
 
       if (result.success) {
-        console.log('✅ Enhanced session with text edits saved successfully');
+        console.log('✅ Enhanced session with Co-pilot changes saved successfully');
         if (!isEndingSession) {
           setShowSuccessToast(true);
         }
@@ -227,7 +391,7 @@ const DeepWorkPage: React.FC = () => {
 
   // Handle session end
   const handleEndSession = async () => {
-    console.log('🏁 Ending enhanced session with text edits...');
+    console.log('🏁 Ending enhanced session with Co-pilot changes...');
     
     const saveResult = await saveSessionProgress(true);
     
@@ -281,7 +445,7 @@ const DeepWorkPage: React.FC = () => {
           },
           user.id
         );
-        console.log('💾 Interrupted enhanced session with text edits saved');
+        console.log('💾 Interrupted enhanced session with Co-pilot changes saved');
       } catch (error) {
         console.warn('⚠️ Failed to save interrupted enhanced session:', error);
       }
@@ -331,7 +495,7 @@ const DeepWorkPage: React.FC = () => {
                 Enhanced Deep Work Session
               </h1>
               <p className="text-sm text-muted-foreground mt-1">
-                {mainTask}
+                {sessionData.mainTask}
               </p>
               {isSaving && (
                 <p className="text-xs text-primary mt-1">
@@ -341,6 +505,18 @@ const DeepWorkPage: React.FC = () => {
             </div>
             
             <div className="flex items-center space-x-3">
+              {/* Co-pilot Button */}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsCoPilotModalOpen(true)}
+                disabled={actionsDisabled || isCoPilotLoading}
+                className="flex items-center space-x-2 border-primary/50 text-primary hover:bg-primary/10"
+              >
+                <Sparkles className="w-4 h-4" />
+                <span>Refine Plan</span>
+              </Button>
+
               <Button
                 variant="ghost"
                 size="sm"
@@ -382,7 +558,7 @@ const DeepWorkPage: React.FC = () => {
         <div className="bg-destructive/10 border-b border-destructive/20">
           <div className="container mx-auto px-4 py-3">
             <p className="text-destructive text-sm">
-              Error saving session: {saveError}
+              Error: {saveError}
             </p>
           </div>
         </div>
@@ -477,6 +653,53 @@ const DeepWorkPage: React.FC = () => {
         </div>
       </div>
 
+      {/* Co-pilot Modal */}
+      <Modal
+        isOpen={isCoPilotModalOpen}
+        onClose={handleCloseCoPilotModal}
+        title="Refine Plan with Co-pilot ✨"
+        className="max-w-4xl"
+      >
+        <div className="p-4 space-y-6">
+          {/* Co-pilot Command Input */}
+          <PlanCoPilot
+            isOpen={true}
+            onClose={() => {}}
+            onSubmit={handleCoPilotCommand}
+            isLoading={isCoPilotLoading}
+            className="static bg-transparent border-0 shadow-none"
+          />
+
+          {/* Diff Viewer */}
+          {coPilotModifications && (
+            <PlanDiffViewer
+              originalPlan={subTasks}
+              modifications={coPilotModifications.modifications}
+              newProjectTitle={coPilotModifications.newProjectTitle}
+              originalProjectTitle={sessionData.mainTask}
+              explanation={coPilotModifications.explanation}
+              onAccept={handleAcceptModifications}
+              onDiscard={handleDiscardModifications}
+            />
+          )}
+
+          {/* Help Text */}
+          {!coPilotModifications && !isCoPilotLoading && (
+            <div className="bg-muted/50 rounded-lg p-4 text-sm text-muted-foreground">
+              <p className="mb-2">
+                <strong>How to use the Co-pilot:</strong>
+              </p>
+              <ul className="list-disc pl-5 space-y-1">
+                <li>Type a command like "Make all tasks 10 minutes long" or "Add a final review step"</li>
+                <li>The Co-pilot will analyze your plan and suggest changes</li>
+                <li>Review the suggested changes and accept or discard them</li>
+                <li>Changes will be applied to your current session</li>
+              </ul>
+            </div>
+          )}
+        </div>
+      </Modal>
+
       {/* Enhanced Full Plan Modal with Interactive Features */}
       <FullPlanModal
         isOpen={showFullPlanModal}
@@ -490,7 +713,7 @@ const DeepWorkPage: React.FC = () => {
           estimated_minutes_per_sub_task: task.estimated_minutes_per_sub_task,
           isCompleted: task.isCompleted
         }))}
-        mainTask={mainTask}
+        mainTask={sessionData.mainTask}
         onToggleTask={handleTaskComplete} // Enable interactive checkboxes
         onTaskSelect={handleTaskSelect} // Enable task navigation
         onTaskTextUpdate={handleTaskTextUpdate} // NEW: Enable text editing
@@ -503,8 +726,8 @@ const DeepWorkPage: React.FC = () => {
         <div className="fixed top-4 right-4 z-50">
           <Toast
             variant="success"
-            title="Progress Saved"
-            description="Your enhanced session progress with text edits has been saved successfully."
+            title="Success!"
+            description={coPilotModifications ? "Co-pilot changes applied successfully." : "Progress saved successfully."}
             onClose={() => setShowSuccessToast(false)}
             duration={3000}
           />
