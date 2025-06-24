@@ -3,7 +3,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 // LLM Configuration for plan refinement
 const LLM_CONFIG = {
-  MODEL_NAME: 'gemini-2.5-flash-light',
+  MODEL_NAME: 'gemini-2.5-flash-lite-previw-06-17',
   TEMPERATURE: 0.3, // Lower temperature for more consistent modifications
   TOP_K: 40,
   TOP_P: 0.95,
