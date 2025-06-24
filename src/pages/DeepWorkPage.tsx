@@ -493,6 +493,8 @@ const DeepWorkPage: React.FC = () => {
         mainTask={mainTask}
         onToggleTask={handleTaskComplete} // Enable interactive checkboxes
         onTaskSelect={handleTaskSelect} // Enable task navigation
+        onTaskTextUpdate={handleTaskTextUpdate} // NEW: Enable text editing
+        onTaskTimeUpdate={handleTaskTimeUpdate} // NEW: Enable time editing
         readOnly={false} // This is an interactive session modal
       />
 
