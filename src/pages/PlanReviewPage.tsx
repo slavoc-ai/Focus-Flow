@@ -8,33 +8,30 @@ import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Modal } from '../components/ui/Modal';
 import { Toast } from '../components/ui/Toast';
+import { EditableProjectTitle } from '../components/ui/EditableProjectTitle';
+import { EditableTaskField } from '../components/ui/EditableTaskField';
+import { EditableNumberField } from '../components/ui/EditableNumberField';
 import { useAuth } from '../contexts/AuthContext';
 import { usePlanStore } from '../store/planStore';
-import { useUiStore } from '../store/uiStore'; // Import the new UI store
+import { useUiStore } from '../store/uiStore';
 import { projectService, ProjectData, SubTaskData } from '../services/projectService';
-import { GripVertical, Trash2, Plus, Edit3, Check, X, AlertCircle, Play, Save, RefreshCw, FileText, Sparkles } from 'lucide-react';
+import { GripVertical, Trash2, Plus, Check, X, AlertCircle, Play, Save, RefreshCw, FileText, Sparkles } from 'lucide-react';
 
 interface SortableTaskItemProps {
   task: {
     id: string;
-    title: string; // Enhanced structure
-    action: string; // Enhanced structure
-    details: string; // Enhanced structure
+    title: string;
+    action: string;
+    details: string;
     estimatedMinutes?: number;
     completed?: boolean;
   };
-  onEdit: (id: string, newValues: { title: string; action: string; details: string }) => void;
+  onEdit: (id: string, newValues: { title?: string; action?: string; details?: string; estimatedMinutes?: number }) => void;
   onDelete: (id: string) => void;
+  disabled?: boolean;
 }
 
-const SortableTaskItem: React.FC<SortableTaskItemProps> = ({ task, onEdit, onDelete }) => {
-  const [isEditing, setIsEditing] = useState(false);
-  const [editValues, setEditValues] = useState({
-    title: task.title,
-    action: task.action,
-    details: task.details
-  });
-  
+const SortableTaskItem: React.FC<SortableTaskItemProps> = ({ task, onEdit, onDelete, disabled = false }) => {
   const {
     attributes,
     listeners,
@@ -50,28 +47,14 @@ const SortableTaskItem: React.FC<SortableTaskItemProps> = ({ task, onEdit, onDel
     opacity: isDragging ? 0.5 : 1,
   };
 
-  const handleSaveEdit = () => {
-    if (editValues.title.trim() && editValues.action.trim()) {
-      onEdit(task.id, editValues);
-      setIsEditing(false);
-    }
-  };
-
-  const handleCancelEdit = () => {
-    setEditValues({
-      title: task.title,
-      action: task.action,
-      details: task.details
-    });
-    setIsEditing(false);
-  };
-
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && e.ctrlKey) {
-      handleSaveEdit();
-    } else if (e.key === 'Escape') {
-      handleCancelEdit();
-    }
+  const handleFieldSave = (field: 'title' | 'action' | 'details' | 'estimatedMinutes') => {
+    return (newValue: string | number | null) => {
+      if (field === 'estimatedMinutes') {
+        onEdit(task.id, { [field]: newValue as number | undefined });
+      } else {
+        onEdit(task.id, { [field]: newValue as string });
+      }
+    };
   };
 
   return (
@@ -85,102 +68,67 @@ const SortableTaskItem: React.FC<SortableTaskItemProps> = ({ task, onEdit, onDel
         {...attributes}
         {...listeners}
         className="text-muted-foreground hover:text-foreground cursor-grab active:cursor-grabbing mt-1"
+        disabled={disabled}
       >
         <GripVertical className="w-5 h-5" />
       </button>
 
       {/* Task Content */}
-      <div className="flex-1">
-        {isEditing ? (
-          <div className="space-y-3">
-            <Input
-              value={editValues.title}
-              onChange={(e) => setEditValues(prev => ({ ...prev, title: e.target.value }))}
-              onKeyDown={handleKeyPress}
-              placeholder="Task title..."
-              className="font-semibold"
-              autoFocus
-            />
-            <Input
-              value={editValues.action}
-              onChange={(e) => setEditValues(prev => ({ ...prev, action: e.target.value }))}
-              onKeyDown={handleKeyPress}
-              placeholder="Immediate action..."
-            />
-            <textarea
-              value={editValues.details}
-              onChange={(e) => setEditValues(prev => ({ ...prev, details: e.target.value }))}
-              onKeyDown={handleKeyPress}
-              placeholder="Detailed explanation..."
-              className="w-full min-h-[80px] px-3 py-2 bg-card border border-input rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring placeholder:text-muted-foreground text-card-foreground transition-colors duration-200"
-            />
-            <div className="flex items-center gap-2">
-              <Button
-                size="sm"
-                onClick={handleSaveEdit}
-                disabled={!editValues.title.trim() || !editValues.action.trim()}
-              >
-                <Check className="w-4 h-4" />
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={handleCancelEdit}
-              >
-                <X className="w-4 h-4" />
-              </Button>
-              <span className="text-xs text-muted-foreground">Ctrl+Enter to save</span>
-            </div>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {/* Task Title */}
-            <h4 className="font-bold text-lg text-card-foreground leading-tight">
-              {task.title}
-            </h4>
-            
-            {/* Immediate Action */}
-            <p className="text-primary font-medium">
-              {task.action}
-            </p>
-            
-            {/* Detailed Explanation */}
-            <p className="text-sm text-muted-foreground leading-relaxed">
-              {task.details}
-            </p>
-            
-            {/* Time Estimate */}
-            {task.estimatedMinutes && (
-              <div className="flex items-center space-x-2 text-xs text-muted-foreground">
-                <span className="bg-muted px-2 py-1 rounded-full">
-                  ~{task.estimatedMinutes} minutes
-                </span>
-              </div>
-            )}
-          </div>
-        )}
+      <div className="flex-1 space-y-3">
+        {/* Task Title */}
+        <EditableTaskField
+          value={task.title}
+          onSave={handleFieldSave('title')}
+          placeholder="Enter task title..."
+          variant="title"
+          disabled={disabled}
+          maxLength={100}
+        />
+        
+        {/* Immediate Action */}
+        <EditableTaskField
+          value={task.action}
+          onSave={handleFieldSave('action')}
+          placeholder="Enter immediate action..."
+          variant="action"
+          disabled={disabled}
+          maxLength={200}
+        />
+        
+        {/* Detailed Explanation */}
+        <EditableTaskField
+          value={task.details}
+          onSave={handleFieldSave('details')}
+          placeholder="Enter detailed explanation..."
+          variant="details"
+          multiline={true}
+          disabled={disabled}
+          maxLength={500}
+        />
+        
+        {/* Time Estimate */}
+        <EditableNumberField
+          value={task.estimatedMinutes}
+          onSave={handleFieldSave('estimatedMinutes')}
+          placeholder="Add time estimate..."
+          disabled={disabled}
+          min={1}
+          max={480}
+          unit="minutes"
+          allowNull={true}
+        />
       </div>
 
-      {/* Action Buttons */}
-      {!isEditing && (
-        <div className="flex items-center gap-2 mt-1">
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() => setIsEditing(true)}
-          >
-            <Edit3 className="w-4 h-4" />
-          </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() => onDelete(task.id)}
-            className="text-destructive hover:text-destructive hover:bg-destructive/10"
-          >
-            <Trash2 className="w-4 h-4" />
-          </Button>
-        </div>
-      )}
+      {/* Delete Button */}
+      <Button
+        size="sm"
+        variant="ghost"
+        onClick={() => onDelete(task.id)}
+        className="text-destructive hover:text-destructive hover:bg-destructive/10 mt-1"
+        disabled={disabled}
+      >
+        <Trash2 className="w-4 h-4" />
+      </Button>
     </div>
   );
 };
@@ -191,7 +139,7 @@ const PlanReviewPage: React.FC = () => {
   const { user } = useAuth();
   const { 
     plan, 
-    projectTitle, // NEW: AI-generated project title
+    projectTitle,
     timeWarning, 
     updatePlan, 
     addPlanTask, 
@@ -201,14 +149,14 @@ const PlanReviewPage: React.FC = () => {
     timeAllocated,
     energyLevel,
     strictTimeAdherence,
-    documentFiles, // Now an array
+    documentFiles,
     isEditingProject,
     editingProjectId,
     loadExistingProject,
     restoreInputsFromPlan
   } = usePlanStore();
 
-  const { setCameFromReviewPage } = useUiStore(); // Use the new UI store
+  const { setCameFromReviewPage } = useUiStore();
   
   const [showDeleteModal, setShowDeleteModal] = useState<string | null>(null);
   const [newTaskTitle, setNewTaskTitle] = useState('');
@@ -222,6 +170,14 @@ const PlanReviewPage: React.FC = () => {
   const [showSuccessToast, setShowSuccessToast] = useState(false);
   const [projectId, setProjectId] = useState<string | null>(editingProjectId);
 
+  // Project title editing
+  const [currentProjectTitle, setCurrentProjectTitle] = useState(projectTitle || taskDescription);
+
+  // Update project title when store changes
+  useEffect(() => {
+    setCurrentProjectTitle(projectTitle || taskDescription);
+  }, [projectTitle, taskDescription]);
+
   // Check if we need to load an existing project
   useEffect(() => {
     const stateProjectId = location.state?.projectId;
@@ -234,7 +190,6 @@ const PlanReviewPage: React.FC = () => {
         setSaveError('Failed to load project for editing');
       });
     } else if (location.state?.plan && !isEditingProject) {
-      // This is coming from a fresh plan generation
       console.log('📋 Using fresh plan data from navigation state');
       setProjectId(null);
     }
@@ -258,7 +213,7 @@ const PlanReviewPage: React.FC = () => {
     }
   };
 
-  const handleEditTask = (id: string, newValues: { title: string; action: string; details: string }) => {
+  const handleEditTask = (id: string, newValues: { title?: string; action?: string; details?: string; estimatedMinutes?: number }) => {
     updatePlanTask(id, newValues);
   };
 
@@ -275,7 +230,6 @@ const PlanReviewPage: React.FC = () => {
 
   const handleAddTask = () => {
     if (newTaskTitle.trim() && newTaskAction.trim()) {
-      // Create enhanced task structure
       const newTask = {
         id: `task-${Date.now()}`,
         title: newTaskTitle.trim(),
@@ -294,6 +248,13 @@ const PlanReviewPage: React.FC = () => {
     }
   };
 
+  const handleProjectTitleSave = async (newTitle: string) => {
+    // For now, just update the local state
+    // In a full implementation, this would also update the store
+    setCurrentProjectTitle(newTitle);
+    console.log('📝 Project title updated:', newTitle);
+  };
+
   const saveProjectToDraft = async () => {
     if (!user || plan.length === 0) {
       setSaveError('Cannot save: missing user information or empty plan');
@@ -306,19 +267,14 @@ const PlanReviewPage: React.FC = () => {
 
       console.log('💾 Saving enhanced project as draft...');
 
-      // Prepare project data with AI-generated title
       const projectData: ProjectData = {
-        title: projectTitle || (taskDescription.length > 50 ? taskDescription.substring(0, 50) + '...' : taskDescription),
+        title: currentProjectTitle || (taskDescription.length > 50 ? taskDescription.substring(0, 50) + '...' : taskDescription),
         original_query: taskDescription,
         allocated_time_minutes: timeAllocated || 0,
         energy_level: energyLevel as 'low' | 'medium' | 'high',
         strict_time_adherence: strictTimeAdherence,
-        // For multi-file support, we'll let the service handle document metadata
-        document_name: undefined,
-        document_text: undefined
       };
 
-      // Prepare enhanced sub-tasks data
       const subTasksData: Omit<SubTaskData, 'order_index'>[] = plan.map(task => ({
         title: task.title,
         action: task.action,
@@ -330,7 +286,7 @@ const PlanReviewPage: React.FC = () => {
         projectData,
         subTasksData,
         user.id,
-        documentFiles // Pass the files array for metadata
+        documentFiles
       );
 
       if (result.success && result.project) {
@@ -363,16 +319,14 @@ const PlanReviewPage: React.FC = () => {
       let finalPlanData: any[];
 
       if (isEditingProject && editingProjectId) {
-        // Update existing project
         console.log('📝 Updating existing enhanced project before starting session...');
         
         const projectData = {
-          title: projectTitle || (taskDescription.length > 50 ? taskDescription.substring(0, 50) + '...' : taskDescription),
+          title: currentProjectTitle || (taskDescription.length > 50 ? taskDescription.substring(0, 50) + '...' : taskDescription),
           original_query: taskDescription,
           allocated_time_minutes: timeAllocated || 0,
           energy_level: energyLevel as 'low' | 'medium' | 'high',
           strict_time_adherence: strictTimeAdherence,
-          // Note: For existing projects, we can't update document info since files aren't stored
         };
 
         const updateResult = await projectService.updateProject(editingProjectId, projectData, user.id);
@@ -382,7 +336,6 @@ const PlanReviewPage: React.FC = () => {
         }
 
         finalProjectId = editingProjectId;
-        // For existing projects, use the plan state (which has database IDs)
         finalPlanData = plan.map(task => ({
           id: task.id,
           title: task.title,
@@ -393,16 +346,14 @@ const PlanReviewPage: React.FC = () => {
         }));
         console.log('✅ Enhanced project updated successfully:', finalProjectId);
       } else {
-        // Create new project
         console.log('💾 Creating new enhanced project before starting session...');
         
         const projectData: ProjectData = {
-          title: projectTitle || (taskDescription.length > 50 ? taskDescription.substring(0, 50) + '...' : taskDescription),
+          title: currentProjectTitle || (taskDescription.length > 50 ? taskDescription.substring(0, 50) + '...' : taskDescription),
           original_query: taskDescription,
           allocated_time_minutes: timeAllocated || 0,
           energy_level: energyLevel as 'low' | 'medium' | 'high',
           strict_time_adherence: strictTimeAdherence,
-          // Document metadata will be handled by the service
         };
 
         const subTasksData: Omit<SubTaskData, 'order_index'>[] = plan.map(task => ({
@@ -416,7 +367,7 @@ const PlanReviewPage: React.FC = () => {
           projectData,
           subTasksData,
           user.id,
-          documentFiles // Pass files for metadata
+          documentFiles
         );
 
         if (!result.success || !result.project) {
@@ -424,10 +375,9 @@ const PlanReviewPage: React.FC = () => {
         }
 
         finalProjectId = result.project.id;
-        // For new projects, use the sub_tasks from the database result (which have database IDs)
         finalPlanData = result.project.sub_tasks?.map(dbTask => ({
           id: dbTask.id,
-          title: dbTask.title || dbTask.description, // Handle legacy data
+          title: dbTask.title || dbTask.description,
           action: dbTask.action || dbTask.description,
           details: dbTask.details || dbTask.description,
           estimated_minutes_per_sub_task: dbTask.estimated_minutes_per_sub_task,
@@ -436,16 +386,15 @@ const PlanReviewPage: React.FC = () => {
         console.log('✅ Enhanced project created successfully:', finalProjectId);
       }
 
-      // Navigate to deep work page with enhanced data
       const sessionData = {
         plan: finalPlanData,
-        mainTask: projectTitle || taskDescription || 'Deep Work Session',
-        projectId: finalProjectId, // Always pass the project ID
+        mainTask: currentProjectTitle || taskDescription || 'Deep Work Session',
+        projectId: finalProjectId,
         originalQuery: taskDescription,
         timeAllocated: timeAllocated || 0,
         energyLevel,
         strictTimeAdherence,
-        documentFiles: documentFiles.map(f => f.name), // Pass file names for reference
+        documentFiles: documentFiles.map(f => f.name),
       };
 
       navigate('/deep-work', { state: sessionData });
@@ -459,9 +408,7 @@ const PlanReviewPage: React.FC = () => {
   };
 
   const handleBackToHome = () => {
-    // Set the flag in UI store before navigating
     setCameFromReviewPage(true);
-    // Restore inputs and navigate back to home
     restoreInputsFromPlan();
     navigate('/');
   };
@@ -495,17 +442,16 @@ const PlanReviewPage: React.FC = () => {
               </h2>
             </div>
             
-            {/* AI-Generated Project Title */}
-            {projectTitle && (
-              <div className="bg-primary/10 border border-primary/20 rounded-lg p-3 mb-3">
-                <p className="text-sm text-primary font-medium mb-1">
-                  🎯 AI-Generated Project Title:
-                </p>
-                <h3 className="text-lg font-semibold text-primary">
-                  {projectTitle}
-                </h3>
-              </div>
-            )}
+            {/* Editable Project Title */}
+            <div className="mb-3">
+              <EditableProjectTitle
+                value={currentProjectTitle}
+                onSave={handleProjectTitleSave}
+                placeholder="Enter project title..."
+                showAiIcon={!!projectTitle && !isEditingProject}
+                className="text-lg"
+              />
+            </div>
             
             <p className="text-muted-foreground text-sm">
               {isEditingProject 
@@ -582,7 +528,7 @@ const PlanReviewPage: React.FC = () => {
           </div>
         )}
         
-        {/* Enhanced Plan Tasks */}
+        {/* Enhanced Plan Tasks with Inline Editing */}
         <DndContext
           sensors={sensors}
           collisionDetection={closestCenter}
@@ -599,6 +545,7 @@ const PlanReviewPage: React.FC = () => {
                   task={task}
                   onEdit={handleEditTask}
                   onDelete={handleDeleteTask}
+                  disabled={isSaving}
                 />
               ))}
             </div>
@@ -655,6 +602,7 @@ const PlanReviewPage: React.FC = () => {
             variant="outline"
             onClick={() => setShowAddTask(true)}
             className="w-full mb-6"
+            disabled={isSaving}
           >
             <Plus className="w-4 h-4 mr-2" />
             Add Step
