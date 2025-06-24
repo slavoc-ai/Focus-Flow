@@ -11,10 +11,13 @@ import { Toast } from '../components/ui/Toast';
 import { EditableProjectTitle } from '../components/ui/EditableProjectTitle';
 import { EditableTaskField } from '../components/ui/EditableTaskField';
 import { EditableNumberField } from '../components/ui/EditableNumberField';
+import { PlanCoPilot } from '../components/plan/PlanCoPilot';
+import { PlanDiffViewer, Modification } from '../components/plan/PlanDiffViewer';
 import { useAuth } from '../contexts/AuthContext';
 import { usePlanStore } from '../store/planStore';
 import { useUiStore } from '../store/uiStore';
 import { projectService, ProjectData, SubTaskData } from '../services/projectService';
+import { planService } from '../services/planService';
 import { GripVertical, Trash2, Plus, Check, X, AlertCircle, Play, Save, RefreshCw, FileText, Sparkles } from 'lucide-react';
 
 interface SortableTaskItemProps {
@@ -173,6 +176,15 @@ const PlanReviewPage: React.FC = () => {
   // Project title editing
   const [currentProjectTitle, setCurrentProjectTitle] = useState(projectTitle || taskDescription);
 
+  // Co-pilot state
+  const [showCoPilot, setShowCoPilot] = useState(false);
+  const [coPilotLoading, setCoPilotLoading] = useState(false);
+  const [proposedModifications, setProposedModifications] = useState<{
+    modifications: Modification[];
+    newProjectTitle?: string;
+    explanation?: string;
+  } | null>(null);
+
   // Update project title when store changes
   useEffect(() => {
     setCurrentProjectTitle(projectTitle || taskDescription);
@@ -249,10 +261,145 @@ const PlanReviewPage: React.FC = () => {
   };
 
   const handleProjectTitleSave = async (newTitle: string) => {
-    // For now, just update the local state
-    // In a full implementation, this would also update the store
     setCurrentProjectTitle(newTitle);
     console.log('📝 Project title updated:', newTitle);
+  };
+
+  // Co-pilot handlers
+  const handleCoPilotSubmit = async (command: string) => {
+    try {
+      setCoPilotLoading(true);
+      setSaveError(null);
+
+      console.log('🤖 Co-pilot command:', command);
+
+      // Prepare current plan for Co-pilot
+      const currentPlan = {
+        project_title: currentProjectTitle,
+        sub_tasks: plan.map(task => ({
+          id: task.id,
+          title: task.title,
+          action: task.action,
+          details: task.details,
+          estimated_minutes_per_sub_task: task.estimatedMinutes
+        }))
+      };
+
+      // Get document context if available
+      const documentContext = documentFiles.length > 0 
+        ? `Documents processed: ${documentFiles.map(f => f.name).join(', ')}`
+        : undefined;
+
+      // Call Co-pilot service
+      const result = await planService.refinePlanWithAI(command, currentPlan, documentContext);
+
+      if (!result.success) {
+        throw new Error(result.error || 'Co-pilot refinement failed');
+      }
+
+      console.log('✅ Co-pilot refinement successful:', {
+        modificationsCount: result.modifications.length,
+        hasNewTitle: !!result.newProjectTitle
+      });
+
+      // Set proposed modifications for review
+      setProposedModifications({
+        modifications: result.modifications,
+        newProjectTitle: result.newProjectTitle,
+        explanation: result.explanation
+      });
+
+      // Close Co-pilot
+      setShowCoPilot(false);
+
+    } catch (error) {
+      console.error('❌ Co-pilot error:', error);
+      setSaveError(error instanceof Error ? error.message : 'Co-pilot refinement failed');
+    } finally {
+      setCoPilotLoading(false);
+    }
+  };
+
+  const handleAcceptModifications = () => {
+    if (!proposedModifications) return;
+
+    console.log('✅ Applying Co-pilot modifications:', proposedModifications.modifications.length);
+
+    // Apply modifications to the plan
+    let newPlan = [...plan];
+
+    // Process modifications in order
+    for (const mod of proposedModifications.modifications) {
+      switch (mod.operation) {
+        case 'update':
+          if (mod.taskId && mod.changes) {
+            const taskIndex = newPlan.findIndex(task => task.id === mod.taskId);
+            if (taskIndex !== -1) {
+              newPlan[taskIndex] = {
+                ...newPlan[taskIndex],
+                title: mod.changes.title || newPlan[taskIndex].title,
+                action: mod.changes.action || newPlan[taskIndex].action,
+                details: mod.changes.details || newPlan[taskIndex].details,
+                estimatedMinutes: mod.changes.estimated_minutes_per_sub_task || newPlan[taskIndex].estimatedMinutes
+              };
+            }
+          }
+          break;
+
+        case 'add':
+          if (mod.newTask) {
+            const newTask = {
+              id: mod.newTask.id,
+              title: mod.newTask.title,
+              action: mod.newTask.action,
+              details: mod.newTask.details,
+              estimatedMinutes: mod.newTask.estimated_minutes_per_sub_task,
+              completed: false
+            };
+
+            if (mod.afterTaskId) {
+              const insertIndex = newPlan.findIndex(task => task.id === mod.afterTaskId) + 1;
+              newPlan.splice(insertIndex, 0, newTask);
+            } else {
+              newPlan.unshift(newTask); // Add at beginning
+            }
+          }
+          break;
+
+        case 'delete':
+          if (mod.taskId) {
+            newPlan = newPlan.filter(task => task.id !== mod.taskId);
+          }
+          break;
+
+        case 'reorder':
+          if (mod.newOrder) {
+            const reorderedPlan = mod.newOrder.map(taskId => 
+              newPlan.find(task => task.id === taskId)
+            ).filter(Boolean) as typeof newPlan;
+            newPlan = reorderedPlan;
+          }
+          break;
+      }
+    }
+
+    // Update the plan
+    updatePlan(newPlan);
+
+    // Update project title if changed
+    if (proposedModifications.newProjectTitle) {
+      setCurrentProjectTitle(proposedModifications.newProjectTitle);
+    }
+
+    // Clear modifications
+    setProposedModifications(null);
+
+    // Show success message
+    setShowSuccessToast(true);
+  };
+
+  const handleDiscardModifications = () => {
+    setProposedModifications(null);
   };
 
   const saveProjectToDraft = async () => {
@@ -430,295 +577,331 @@ const PlanReviewPage: React.FC = () => {
   }
 
   return (
-    <div className="max-w-4xl mx-auto space-y-8">
-      <div className="bg-card rounded-lg shadow-lg p-6 border border-border">
-        {/* Enhanced Header */}
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex-1">
-            <div className="flex items-center space-x-3 mb-2">
-              <Sparkles className="w-6 h-6 text-primary" />
-              <h2 className="text-2xl font-bold text-card-foreground">
-                {isEditingProject ? 'Edit Your Plan' : 'Review Your Enhanced Plan'}
-              </h2>
-            </div>
-            
-            {/* Editable Project Title */}
-            <div className="mb-3">
-              <EditableProjectTitle
-                value={currentProjectTitle}
-                onSave={handleProjectTitleSave}
-                placeholder="Enter project title..."
-                showAiIcon={!!projectTitle && !isEditingProject}
-                className="text-lg"
-              />
-            </div>
-            
-            <p className="text-muted-foreground text-sm">
-              {isEditingProject 
-                ? 'Modify your existing project and start a new session' 
-                : 'Review your AI-generated tasks with enhanced structure and save your project'
-              }
-            </p>
-          </div>
-          
-          <div className="flex items-center space-x-2">
-            {isEditingProject && (
-              <Button
-                onClick={handleBackToHome}
-                variant="ghost"
-                size="sm"
-                className="flex items-center space-x-2"
-                disabled={isSaving}
-              >
-                <RefreshCw className="w-4 h-4" />
-                <span>New Plan</span>
-              </Button>
-            )}
-            
-            {user && !isEditingProject && !projectId && (
-              <Button
-                onClick={handleBackToHome}
-                variant="ghost"
-                size="sm"
-                className="flex items-center space-x-2 text-destructive hover:text-destructive hover:bg-destructive/10"
-                disabled={isSaving}
-              >
-                <X className="w-4 h-4" />
-              </Button>
-            )}
-          </div>
-        </div>
+    <>
+      {/* Co-pilot Interface */}
+      <PlanCoPilot
+        isOpen={showCoPilot}
+        onClose={() => setShowCoPilot(false)}
+        onSubmit={handleCoPilotSubmit}
+        isLoading={coPilotLoading}
+      />
 
-        {/* Save Status */}
-        {projectId && !isEditingProject && (
-          <div className="mb-6 p-3 bg-primary/10 border border-primary/20 rounded-lg">
-            <p className="text-primary text-sm">
-              ✅ Enhanced project saved successfully! You can now start your session or continue editing.
-            </p>
-          </div>
-        )}
-
-        {/* Editing Project Status */}
-        {isEditingProject && (
-          <div className="mb-6 p-3 bg-primary/10 border border-primary/20 rounded-lg">
-            <p className="text-primary text-sm">
-              📝 Editing existing project. Changes will be saved when you start your session.
-            </p>
-          </div>
-        )}
-
-        {/* Error Display */}
-        {saveError && (
-          <div className="mb-6 p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
-            <p className="text-destructive text-sm">
-              ❌ {saveError}
-            </p>
-          </div>
-        )}
-        
-        {/* Time Warning */}
-        {timeWarning && (
-          <div className="mb-6 p-4 bg-accent/10 border border-accent/20 rounded-lg">
-            <div className="flex items-start gap-3">
-              <AlertCircle className="w-5 h-5 text-accent mt-0.5 flex-shrink-0" />
-              <p className="text-accent text-sm">
-                {timeWarning}
+      <div className="max-w-4xl mx-auto space-y-8">
+        <div className="bg-card rounded-lg shadow-lg p-6 border border-border">
+          {/* Enhanced Header */}
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex-1">
+              <div className="flex items-center space-x-3 mb-2">
+                <Sparkles className="w-6 h-6 text-primary" />
+                <h2 className="text-2xl font-bold text-card-foreground">
+                  {isEditingProject ? 'Edit Your Plan' : 'Review Your Enhanced Plan'}
+                </h2>
+              </div>
+              
+              {/* Editable Project Title */}
+              <div className="mb-3">
+                <EditableProjectTitle
+                  value={currentProjectTitle}
+                  onSave={handleProjectTitleSave}
+                  placeholder="Enter project title..."
+                  className="text-lg"
+                />
+              </div>
+              
+              <p className="text-muted-foreground text-sm">
+                {isEditingProject 
+                  ? 'Modify your existing project and start a new session' 
+                  : 'Review your AI-generated tasks with enhanced structure and save your project'
+                }
               </p>
             </div>
-          </div>
-        )}
-        
-        {/* Enhanced Plan Tasks with Inline Editing */}
-        <DndContext
-          sensors={sensors}
-          collisionDetection={closestCenter}
-          onDragEnd={handleDragEnd}
-        >
-          <SortableContext
-            items={plan.map(item => item.id)}
-            strategy={verticalListSortingStrategy}
-          >
-            <div className="space-y-4 mb-6">
-              {plan.map((task) => (
-                <SortableTaskItem
-                  key={task.id}
-                  task={task}
-                  onEdit={handleEditTask}
-                  onDelete={handleDeleteTask}
-                  disabled={isSaving}
-                />
-              ))}
-            </div>
-          </SortableContext>
-        </DndContext>
+            
+            <div className="flex items-center space-x-2">
+              {/* Co-pilot Button */}
+              <Button
+                onClick={() => setShowCoPilot(true)}
+                variant="outline"
+                size="sm"
+                className="flex items-center space-x-2 border-primary/50 text-primary hover:bg-primary/10"
+                disabled={isSaving || coPilotLoading}
+              >
+                <Sparkles className="w-4 h-4" />
+                <span>Refine with AI</span>
+              </Button>
 
-        {/* Enhanced Add New Task */}
-        {showAddTask ? (
-          <div className="mb-6 p-6 border-2 border-dashed border-border rounded-lg bg-muted/30">
-            <h4 className="font-semibold text-card-foreground mb-4">Add New Task</h4>
-            <div className="space-y-3">
-              <Input
-                placeholder="Task title (e.g., 'Research Phase')"
-                value={newTaskTitle}
-                onChange={(e) => setNewTaskTitle(e.target.value)}
-                className="font-semibold"
-              />
-              <Input
-                placeholder="Immediate action (e.g., 'Open browser and search for...')"
-                value={newTaskAction}
-                onChange={(e) => setNewTaskAction(e.target.value)}
-              />
-              <textarea
-                placeholder="Detailed explanation and context..."
-                value={newTaskDetails}
-                onChange={(e) => setNewTaskDetails(e.target.value)}
-                className="w-full min-h-[80px] px-3 py-2 bg-card border border-input rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring placeholder:text-muted-foreground text-card-foreground transition-colors duration-200"
-              />
-              <div className="flex items-center gap-3">
+              {isEditingProject && (
                 <Button
-                  onClick={handleAddTask}
-                  disabled={!newTaskTitle.trim() || !newTaskAction.trim()}
-                >
-                  <Check className="w-4 h-4 mr-2" />
-                  Add Task
-                </Button>
-                <Button
+                  onClick={handleBackToHome}
                   variant="ghost"
-                  onClick={() => {
-                    setShowAddTask(false);
-                    setNewTaskTitle('');
-                    setNewTaskAction('');
-                    setNewTaskDetails('');
-                  }}
+                  size="sm"
+                  className="flex items-center space-x-2"
+                  disabled={isSaving}
                 >
-                  <X className="w-4 h-4 mr-2" />
-                  Cancel
+                  <RefreshCw className="w-4 h-4" />
+                  <span>New Plan</span>
                 </Button>
-              </div>
+              )}
+              
+              {user && !isEditingProject && !projectId && (
+                <Button
+                  onClick={handleBackToHome}
+                  variant="ghost"
+                  size="sm"
+                  className="flex items-center space-x-2 text-destructive hover:text-destructive hover:bg-destructive/10"
+                  disabled={isSaving}
+                >
+                  <X className="w-4 h-4" />
+                </Button>
+              )}
             </div>
           </div>
-        ) : (
-          <Button
-            variant="outline"
-            onClick={() => setShowAddTask(true)}
-            className="w-full mb-6"
-            disabled={isSaving}
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            Add Step
-          </Button>
-        )}
 
-        {/* Enhanced Project Summary */}
-        <div className="mb-6 p-4 bg-muted rounded-lg">
-          <h3 className="font-semibold text-card-foreground mb-3">Project Summary</h3>
-          <div className="grid grid-cols-2 gap-4 text-sm">
-            <div>
-              <span className="text-muted-foreground">Time Allocated:</span>
-              <span className="ml-2 font-medium">
-                {timeAllocated ? `${timeAllocated} minutes` : 'Unlimited'}
-              </span>
+          {/* Co-pilot Diff Viewer */}
+          {proposedModifications && (
+            <div className="mb-6">
+              <PlanDiffViewer
+                originalPlan={plan}
+                modifications={proposedModifications.modifications}
+                newProjectTitle={proposedModifications.newProjectTitle}
+                originalProjectTitle={currentProjectTitle}
+                explanation={proposedModifications.explanation}
+                onAccept={handleAcceptModifications}
+                onDiscard={handleDiscardModifications}
+              />
             </div>
-            <div>
-              <span className="text-muted-foreground">Energy Level:</span>
-              <span className="ml-2 font-medium capitalize">{energyLevel}</span>
+          )}
+
+          {/* Save Status */}
+          {projectId && !isEditingProject && (
+            <div className="mb-6 p-3 bg-primary/10 border border-primary/20 rounded-lg">
+              <p className="text-primary text-sm">
+                ✅ Enhanced project saved successfully! You can now start your session or continue editing.
+              </p>
             </div>
-            <div>
-              <span className="text-muted-foreground">Total Tasks:</span>
-              <span className="ml-2 font-medium">{plan.length}</span>
+          )}
+
+          {/* Editing Project Status */}
+          {isEditingProject && (
+            <div className="mb-6 p-3 bg-primary/10 border border-primary/20 rounded-lg">
+              <p className="text-primary text-sm">
+                📝 Editing existing project. Changes will be saved when you start your session.
+              </p>
             </div>
-            <div>
-              <span className="text-muted-foreground">Strict Time:</span>
-              <span className="ml-2 font-medium">{strictTimeAdherence ? 'Yes' : 'No'}</span>
+          )}
+
+          {/* Error Display */}
+          {saveError && (
+            <div className="mb-6 p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
+              <p className="text-destructive text-sm">
+                ❌ {saveError}
+              </p>
             </div>
-          </div>
-          {documentFiles.length > 0 && (
-            <div className="mt-3 pt-3 border-t border-border">
-              <div className="flex items-center space-x-2 text-sm">
-                <FileText className="w-4 h-4 text-muted-foreground" />
-                <span className="text-muted-foreground">Documents:</span>
-                <span className="font-medium">
-                  {documentFiles.length} file{documentFiles.length > 1 ? 's' : ''} processed
-                </span>
-              </div>
-              <div className="mt-1 text-xs text-muted-foreground">
-                {documentFiles.map(f => f.name).join(', ')}
+          )}
+          
+          {/* Time Warning */}
+          {timeWarning && (
+            <div className="mb-6 p-4 bg-accent/10 border border-accent/20 rounded-lg">
+              <div className="flex items-start gap-3">
+                <AlertCircle className="w-5 h-5 text-accent mt-0.5 flex-shrink-0" />
+                <p className="text-accent text-sm">
+                  {timeWarning}
+                </p>
               </div>
             </div>
           )}
-        </div>
-
-        {/* Action Buttons */}
-        <div className="flex flex-col sm:flex-row gap-3">
-          <Button
-            variant="ghost"
-            onClick={handleBackToHome}
-            className="sm:w-auto"
-            disabled={isSaving}
-          >
-            {isEditingProject ? 'New Plan' : 'Back to Home'}
-          </Button>
           
-          <div className="flex gap-3 flex-1">
-            {user && !isEditingProject && !projectId && (
-              <Button
-                onClick={saveProjectToDraft}
-                disabled={isSaving}
-                variant="outline"
-                className="flex-1 sm:flex-none"
-              >
-                {isSaving ? 'Saving...' : 'Save Draft'}
-              </Button>
-            )}
-            
-            <Button
-              onClick={handleStartSession}
-              className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground flex items-center justify-center space-x-2"
-              disabled={plan.length === 0 || isSaving}
+          {/* Enhanced Plan Tasks with Inline Editing */}
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleDragEnd}
+          >
+            <SortableContext
+              items={plan.map(item => item.id)}
+              strategy={verticalListSortingStrategy}
             >
-              <Play className="w-4 h-4" />
-              <span>{isSaving ? 'Starting...' : 'Start Deep Work Session'}</span>
+              <div className="space-y-4 mb-6">
+                {plan.map((task) => (
+                  <SortableTaskItem
+                    key={task.id}
+                    task={task}
+                    onEdit={handleEditTask}
+                    onDelete={handleDeleteTask}
+                    disabled={isSaving}
+                  />
+                ))}
+              </div>
+            </SortableContext>
+          </DndContext>
+
+          {/* Enhanced Add New Task */}
+          {showAddTask ? (
+            <div className="mb-6 p-6 border-2 border-dashed border-border rounded-lg bg-muted/30">
+              <h4 className="font-semibold text-card-foreground mb-4">Add New Task</h4>
+              <div className="space-y-3">
+                <Input
+                  placeholder="Task title (e.g., 'Research Phase')"
+                  value={newTaskTitle}
+                  onChange={(e) => setNewTaskTitle(e.target.value)}
+                  className="font-semibold"
+                />
+                <Input
+                  placeholder="Immediate action (e.g., 'Open browser and search for...')"
+                  value={newTaskAction}
+                  onChange={(e) => setNewTaskAction(e.target.value)}
+                />
+                <textarea
+                  placeholder="Detailed explanation and context..."
+                  value={newTaskDetails}
+                  onChange={(e) => setNewTaskDetails(e.target.value)}
+                  className="w-full min-h-[80px] px-3 py-2 bg-card border border-input rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring placeholder:text-muted-foreground text-card-foreground transition-colors duration-200"
+                />
+                <div className="flex items-center gap-3">
+                  <Button
+                    onClick={handleAddTask}
+                    disabled={!newTaskTitle.trim() || !newTaskAction.trim()}
+                  >
+                    <Check className="w-4 h-4 mr-2" />
+                    Add Task
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    onClick={() => {
+                      setShowAddTask(false);
+                      setNewTaskTitle('');
+                      setNewTaskAction('');
+                      setNewTaskDetails('');
+                    }}
+                  >
+                    <X className="w-4 h-4 mr-2" />
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <Button
+              variant="outline"
+              onClick={() => setShowAddTask(true)}
+              className="w-full mb-6"
+              disabled={isSaving}
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Add Step
             </Button>
+          )}
+
+          {/* Enhanced Project Summary */}
+          <div className="mb-6 p-4 bg-muted rounded-lg">
+            <h3 className="font-semibold text-card-foreground mb-3">Project Summary</h3>
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div>
+                <span className="text-muted-foreground">Time Allocated:</span>
+                <span className="ml-2 font-medium">
+                  {timeAllocated ? `${timeAllocated} minutes` : 'Unlimited'}
+                </span>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Energy Level:</span>
+                <span className="ml-2 font-medium capitalize">{energyLevel}</span>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Total Tasks:</span>
+                <span className="ml-2 font-medium">{plan.length}</span>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Strict Time:</span>
+                <span className="ml-2 font-medium">{strictTimeAdherence ? 'Yes' : 'No'}</span>
+              </div>
+            </div>
+            {documentFiles.length > 0 && (
+              <div className="mt-3 pt-3 border-t border-border">
+                <div className="flex items-center space-x-2 text-sm">
+                  <FileText className="w-4 h-4 text-muted-foreground" />
+                  <span className="text-muted-foreground">Documents:</span>
+                  <span className="font-medium">
+                    {documentFiles.length} file{documentFiles.length > 1 ? 's' : ''} processed
+                  </span>
+                </div>
+                <div className="mt-1 text-xs text-muted-foreground">
+                  {documentFiles.map(f => f.name).join(', ')}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex flex-col sm:flex-row gap-3">
+            <Button
+              variant="ghost"
+              onClick={handleBackToHome}
+              className="sm:w-auto"
+              disabled={isSaving}
+            >
+              {isEditingProject ? 'New Plan' : 'Back to Home'}
+            </Button>
+            
+            <div className="flex gap-3 flex-1">
+              {user && !isEditingProject && !projectId && (
+                <Button
+                  onClick={saveProjectToDraft}
+                  disabled={isSaving}
+                  variant="outline"
+                  className="flex-1 sm:flex-none"
+                >
+                  {isSaving ? 'Saving...' : 'Save Draft'}
+                </Button>
+              )}
+              
+              <Button
+                onClick={handleStartSession}
+                className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground flex items-center justify-center space-x-2"
+                disabled={plan.length === 0 || isSaving}
+              >
+                <Play className="w-4 h-4" />
+                <span>{isSaving ? 'Starting...' : 'Start Deep Work Session'}</span>
+              </Button>
+            </div>
           </div>
         </div>
+
+        {/* Delete Confirmation Modal */}
+        <Modal
+          isOpen={!!showDeleteModal}
+          onClose={() => setShowDeleteModal(null)}
+          title="Delete Task"
+          description="Are you sure you want to delete this task? This action cannot be undone."
+        >
+          <div className="flex justify-end gap-3 mt-6">
+            <Button
+              variant="ghost"
+              onClick={() => setShowDeleteModal(null)}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={confirmDelete}
+            >
+              Delete
+            </Button>
+          </div>
+        </Modal>
+
+        {/* Success Toast */}
+        {showSuccessToast && (
+          <div className="fixed top-4 right-4 z-50">
+            <Toast
+              variant="success"
+              title="Success!"
+              description={proposedModifications ? "Co-pilot changes applied successfully." : "Enhanced Project Saved"}
+              onClose={() => setShowSuccessToast(false)}
+              duration={3000}
+            />
+          </div>
+        )}
       </div>
-
-      {/* Delete Confirmation Modal */}
-      <Modal
-        isOpen={!!showDeleteModal}
-        onClose={() => setShowDeleteModal(null)}
-        title="Delete Task"
-        description="Are you sure you want to delete this task? This action cannot be undone."
-      >
-        <div className="flex justify-end gap-3 mt-6">
-          <Button
-            variant="ghost"
-            onClick={() => setShowDeleteModal(null)}
-          >
-            Cancel
-          </Button>
-          <Button
-            variant="destructive"
-            onClick={confirmDelete}
-          >
-            Delete
-          </Button>
-        </div>
-      </Modal>
-
-      {/* Success Toast */}
-      {showSuccessToast && (
-        <div className="fixed top-4 right-4 z-50">
-          <Toast
-            variant="success"
-            title="Enhanced Project Saved"
-            description="Your project with enhanced task structure has been saved successfully."
-            onClose={() => setShowSuccessToast(false)}
-            duration={3000}
-          />
-        </div>
-      )}
-    </div>
+    </>
   );
 };
 

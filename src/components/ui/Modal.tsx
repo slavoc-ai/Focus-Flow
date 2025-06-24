@@ -53,7 +53,7 @@ export const Modal: React.FC<ModalProps> = ({
       <div
         className={cn(
           "relative z-50 w-full max-w-lg rounded-lg bg-card p-6 shadow-xl border border-border",
-          "transform transition-all",
+          "transform transition-all max-h-[90vh] flex flex-col",
           className
         )}
       >
@@ -83,8 +83,10 @@ export const Modal: React.FC<ModalProps> = ({
           </div>
         )}
 
-        {/* Content */}
-        {children}
+        {/* Content - with flex-1 and overflow handling */}
+        <div className="flex-1 overflow-auto">
+          {children}
+        </div>
       </div>
     </div>,
     document.body
