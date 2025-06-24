@@ -3,7 +3,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 // LLM Configuration - Using stable Gemini model with increased token limits
 const LLM_CONFIG = {
-  MODEL_NAME: 'gemini-2.5-pro-preview-06-05',
+  MODEL_NAME: 'gemini-2.5-flash',
   TEMPERATURE: 0.7,
   TOP_K: 40,
   TOP_P: 0.95,
