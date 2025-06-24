@@ -112,6 +112,30 @@ const DeepWorkPage: React.FC = () => {
     }
   };
 
+  // NEW: Handle task text updates (title, action, details)
+  const handleTaskTextUpdate = (taskId: string, field: 'title' | 'action' | 'details', newValue: string) => {
+    console.log(`📝 Updating task ${taskId} field ${field}:`, newValue);
+    
+    const updatedTasks = subTasks.map(task => 
+      task.id === taskId ? { ...task, [field]: newValue } : task
+    );
+    
+    setSubTasks(updatedTasks);
+    setSessionData(prev => ({ ...prev, subTasks: updatedTasks }));
+  };
+
+  // NEW: Handle task time estimate updates
+  const handleTaskTimeUpdate = (taskId: string, newTime: number | null) => {
+    console.log(`⏱️ Updating task ${taskId} time estimate:`, newTime);
+    
+    const updatedTasks = subTasks.map(task => 
+      task.id === taskId ? { ...task, estimated_minutes_per_sub_task: newTime || undefined } : task
+    );
+    
+    setSubTasks(updatedTasks);
+    setSessionData(prev => ({ ...prev, subTasks: updatedTasks }));
+  };
+
   // Handle task selection from FullPlanModal
   const handleTaskSelect = (taskId: string) => {
     const taskIndex = subTasks.findIndex(task => task.id === taskId);
@@ -148,9 +172,13 @@ const DeepWorkPage: React.FC = () => {
       setIsSaving(true);
       setSaveError(null);
 
-      // Prepare sub-task updates
+      // Prepare sub-task updates with ALL editable fields
       const subTaskUpdates: SubTaskUpdate[] = subTasks.map(task => ({
         id: task.id,
+        title: task.title,
+        action: task.action,
+        details: task.details,
+        estimated_minutes_per_sub_task: task.estimated_minutes_per_sub_task,
         is_completed: task.isCompleted
       }));
 
@@ -163,10 +191,11 @@ const DeepWorkPage: React.FC = () => {
         notes: undefined // Could be added in future
       };
 
-      console.log('💾 Saving enhanced session progress...', {
+      console.log('💾 Saving enhanced session progress with text edits...', {
         projectId,
         subTaskUpdates: subTaskUpdates.length,
-        sessionDetails
+        sessionDetails,
+        hasTextEdits: subTaskUpdates.some(task => task.title || task.action || task.details)
       });
 
       const result = await sessionService.saveSessionProgress(
@@ -177,7 +206,7 @@ const DeepWorkPage: React.FC = () => {
       );
 
       if (result.success) {
-        console.log('✅ Enhanced session saved successfully');
+        console.log('✅ Enhanced session with text edits saved successfully');
         if (!isEndingSession) {
           setShowSuccessToast(true);
         }
@@ -198,7 +227,7 @@ const DeepWorkPage: React.FC = () => {
 
   // Handle session end
   const handleEndSession = async () => {
-    console.log('🏁 Ending enhanced session...');
+    console.log('🏁 Ending enhanced session with text edits...');
     
     const saveResult = await saveSessionProgress(true);
     
@@ -239,6 +268,10 @@ const DeepWorkPage: React.FC = () => {
           projectId,
           subTasks.map(task => ({
             id: task.id,
+            title: task.title,
+            action: task.action,
+            details: task.details,
+            estimated_minutes_per_sub_task: task.estimated_minutes_per_sub_task,
             is_completed: task.isCompleted
           })),
           {
@@ -248,7 +281,7 @@ const DeepWorkPage: React.FC = () => {
           },
           user.id
         );
-        console.log('💾 Interrupted enhanced session saved');
+        console.log('💾 Interrupted enhanced session with text edits saved');
       } catch (error) {
         console.warn('⚠️ Failed to save interrupted enhanced session:', error);
       }
@@ -366,13 +399,15 @@ const DeepWorkPage: React.FC = () => {
             />
           </div>
 
-          {/* Enhanced Task Carousel */}
+          {/* Enhanced Task Carousel with Editing */}
           {!allTasksCompleted ? (
             <TaskCarousel
               tasks={subTasks}
               currentTaskIndex={currentTaskIndex}
               onTaskComplete={handleTaskComplete}
               onTaskIndexChange={setCurrentTaskIndex}
+              onTaskTextUpdate={handleTaskTextUpdate}
+              onTaskTimeUpdate={handleTaskTimeUpdate}
             />
           ) : (
             <div className="text-center py-12">
@@ -434,7 +469,7 @@ const DeepWorkPage: React.FC = () => {
               <div className="mt-4 pt-4 border-t border-border">
                 <p className="text-xs text-muted-foreground text-center">
                   Enhanced Project ID: {projectId.substring(0, 8)}... • 
-                  {isProjectInitialized ? ' Auto-saving enabled' : ' Initializing project...'}
+                  {isProjectInitialized ? ' Auto-saving enabled with text edits' : ' Initializing project...'}
                 </p>
               </div>
             )}
@@ -467,7 +502,7 @@ const DeepWorkPage: React.FC = () => {
           <Toast
             variant="success"
             title="Progress Saved"
-            description="Your enhanced session progress has been saved successfully."
+            description="Your enhanced session progress with text edits has been saved successfully."
             onClose={() => setShowSuccessToast(false)}
             duration={3000}
           />
