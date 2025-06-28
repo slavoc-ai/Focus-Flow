@@ -256,7 +256,7 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
                     ? isPremium ? "text-yellow-300" : "text-white/70" 
                     : isPremium ? "text-yellow-700 dark:text-yellow-300" : "text-muted-foreground"
                 )}>
-                  Up to {formatFileSize(MAX_INDIVIDUAL_SIZE_BYTES)}/file
+                  Up to {formatFileSize(MAX_INDIVIDUAL_SIZE_BYTES)}
                 </span>
               </div>
               {isPremium && (
