@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Brain, ChevronDown, Sparkles, Target, FileText, Zap, Rocket, ArrowDown } from 'lucide-react';
+import { Brain, ChevronDown, Sparkles, Target, FileText, Zap, Rocket } from 'lucide-react';
 import { usePlanStore } from '../store/planStore';
 import { useUiStore } from '../store/uiStore';
 import { PowerLayout } from '../components/layouts/PowerLayout';
@@ -16,7 +16,6 @@ import { FOCUS_TIPS } from '../constants';
 const HomePage: React.FC = () => {
   const navigate = useNavigate();
   const [currentTipIndex, setCurrentTipIndex] = useState(0);
-  const [currentSection, setCurrentSection] = useState(0);
   
   const {
     taskDescription,
@@ -64,26 +63,6 @@ const HomePage: React.FC = () => {
     console.log('📋 HomePage loaded with preserved input values');
   }, []);
 
-  // Handle scroll to track current section
-  useEffect(() => {
-    const handleScroll = () => {
-      const sections = document.querySelectorAll('.scroll-section-full-page');
-      const scrollContainer = document.querySelector('.scroll-container-full-page');
-      if (!scrollContainer) return;
-      
-      const scrollTop = scrollContainer.scrollTop;
-      const sectionHeight = scrollContainer.clientHeight;
-      
-      const newSection = Math.round(scrollTop / sectionHeight);
-      setCurrentSection(Math.max(0, Math.min(newSection, sections.length - 1)));
-    };
-
-    const scrollContainer = document.querySelector('.scroll-container-full-page');
-    scrollContainer?.addEventListener('scroll', handleScroll);
-    
-    return () => scrollContainer?.removeEventListener('scroll', handleScroll);
-  }, []);
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -102,17 +81,6 @@ const HomePage: React.FC = () => {
     } catch (error) {
       console.error('Error generating plan:', error);
     }
-  };
-
-  const scrollToSection = (sectionIndex: number) => {
-    const scrollContainer = document.querySelector('.scroll-container-full-page');
-    if (!scrollContainer) return;
-    
-    const sectionHeight = scrollContainer.clientHeight;
-    scrollContainer.scrollTo({
-      top: sectionIndex * sectionHeight,
-      behavior: 'smooth'
-    });
   };
 
   // Loading screen with tips
@@ -202,7 +170,7 @@ const HomePage: React.FC = () => {
 
   // Show scrolling wizard interface
   return (
-    <div className="bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 min-h-screen">
+    <div className="bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 w-full">
       <div className="scroll-container-full-page">
         {/* Section 1: Main Goal */}
         <section id="step-1-goal" className="scroll-section-full-page">
@@ -228,17 +196,6 @@ const HomePage: React.FC = () => {
                 className="min-h-[120px] text-lg bg-white/10 border-white/20 text-white placeholder:text-white/60"
               />
             </div>
-            
-            {taskDescription.trim() && (
-              <Button
-                onClick={() => scrollToSection(1)}
-                className="mt-6 flex items-center space-x-2 bg-white/20 hover:bg-white/30 text-white border-0"
-                size="lg"
-              >
-                <span>Continue</span>
-                <ArrowDown className="w-4 h-4" />
-              </Button>
-            )}
           </div>
           
           {/* Scroll indicator */}
@@ -263,7 +220,7 @@ const HomePage: React.FC = () => {
         {/* Section 2: Add Context (Files) */}
         <section id="step-2-files" className="scroll-section-full-page">
           <div className="text-center max-w-3xl w-full fade-in-up">
-            <div className="mb-8 float-animation">
+            <div className="mb-8">
               <div className="inline-flex items-center justify-center w-20 h-20 bg-white/10 rounded-full mb-6">
                 <FileText className="w-10 h-10 text-blue-300" />
               </div>
@@ -286,35 +243,21 @@ const HomePage: React.FC = () => {
               />
             </div>
             
-            <div className="flex justify-center space-x-4 mt-8">
-              <Button
-                variant="ghost"
-                onClick={() => scrollToSection(0)}
-                className="flex items-center space-x-2 text-white/80 hover:text-white hover:bg-white/10"
-              >
-                <ArrowDown className="w-4 h-4 rotate-180" />
-                <span>Back</span>
-              </Button>
-              <Button
-                onClick={() => scrollToSection(2)}
-                className="flex items-center space-x-2 bg-white/20 hover:bg-white/30 text-white border-0"
-                size="lg"
-              >
-                <span>Continue</span>
-                <ArrowDown className="w-4 h-4" />
-              </Button>
-            </div>
-            
             <p className="text-sm text-white/60 mt-4">
               This step is optional - you can skip if you don't have any materials
             </p>
+          </div>
+          
+          {/* Scroll indicator */}
+          <div className="scroll-indicator">
+            <ChevronDown className="w-6 h-6 text-blue-300 animate-bounce" />
           </div>
         </section>
 
         {/* Section 3: Fine-Tuning */}
         <section id="step-3-tuning" className="scroll-section-full-page">
           <div className="text-center max-w-4xl w-full fade-in-up">
-            <div className="mb-8 float-animation">
+            <div className="mb-8">
               <div className="inline-flex items-center justify-center w-20 h-20 bg-white/10 rounded-full mb-6">
                 <Zap className="w-10 h-10 text-orange-300" />
               </div>
@@ -340,32 +283,18 @@ const HomePage: React.FC = () => {
                 className="text-left"
               />
             </div>
-            
-            <div className="flex justify-center space-x-4 mt-8">
-              <Button
-                variant="ghost"
-                onClick={() => scrollToSection(1)}
-                className="flex items-center space-x-2 text-white/80 hover:text-white hover:bg-white/10"
-              >
-                <ArrowDown className="w-4 h-4 rotate-180" />
-                <span>Back</span>
-              </Button>
-              <Button
-                onClick={() => scrollToSection(3)}
-                className="flex items-center space-x-2 bg-white/20 hover:bg-white/30 text-white border-0"
-                size="lg"
-              >
-                <span>Continue</span>
-                <ArrowDown className="w-4 h-4" />
-              </Button>
-            </div>
+          </div>
+          
+          {/* Scroll indicator */}
+          <div className="scroll-indicator">
+            <ChevronDown className="w-6 h-6 text-blue-300 animate-bounce" />
           </div>
         </section>
         
         {/* Section 4: Time Constraint & Launch */}
         <section id="step-4-launch" className="scroll-section-full-page">
           <div className="text-center max-w-2xl w-full fade-in-up">
-            <div className="mb-8 float-animation">
+            <div className="mb-8">
               <div className="inline-flex items-center justify-center w-20 h-20 bg-white/10 rounded-full mb-6">
                 <Rocket className="w-10 h-10 text-green-300" />
               </div>
@@ -422,17 +351,6 @@ const HomePage: React.FC = () => {
                   </span>
                   <Sparkles className="w-5 h-5 animate-spin" />
                 </div>
-              </Button>
-            </div>
-
-            <div className="flex justify-center space-x-4">
-              <Button
-                variant="ghost"
-                onClick={() => scrollToSection(2)}
-                className="flex items-center space-x-2 text-white/80 hover:text-white hover:bg-white/10"
-              >
-                <ArrowDown className="w-4 h-4 rotate-180" />
-                <span>Back</span>
               </Button>
             </div>
 
