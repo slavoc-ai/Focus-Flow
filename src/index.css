@@ -54,6 +54,9 @@
     --color-border: 214 32% 91%;         /* #E2E8F0, Light Gray Border (Gray-200) */
     --color-input: 214 32% 91%;          /* #E2E8F0, Input Border (Gray-200) */
     --color-ring: 221 83% 53%;           /* #2563EB, Focus Ring Blue (Blue-600) */
+
+    /* -- Navigation Bar Height -- */
+    --navbar-height: 4rem; /* 64px */
   }
 
   .dark {
@@ -111,6 +114,81 @@ body {
   color: hsl(var(--color-foreground));
 }
 
+/* Full-Page Scrolling Wizard Styles */
+.scroll-container-full-page {
+  scroll-snap-type: y mandatory;
+  overflow-y: scroll;
+  height: calc(100vh - var(--navbar-height));
+  scroll-behavior: smooth;
+}
+
+.scroll-section-full-page {
+  scroll-snap-align: start;
+  height: calc(100vh - var(--navbar-height));
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: 2rem;
+  width: 100%;
+  position: relative;
+}
+
+/* Smooth scroll indicator */
+.scroll-indicator {
+  position: absolute;
+  bottom: 2rem;
+  left: 50%;
+  transform: translateX(-50%);
+  animation: bounce 2s infinite;
+}
+
+/* Enhanced animations for scroll wizard */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.fade-in-up {
+  animation: fadeInUp 0.6s ease-out;
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+.float-animation {
+  animation: float 3s ease-in-out infinite;
+}
+
+/* Gradient backgrounds for sections */
+.gradient-bg-1 {
+  background: linear-gradient(135deg, hsl(var(--color-primary) / 0.05) 0%, hsl(var(--color-accent) / 0.05) 100%);
+}
+
+.gradient-bg-2 {
+  background: linear-gradient(135deg, hsl(var(--color-accent) / 0.05) 0%, hsl(var(--color-secondary) / 0.05) 100%);
+}
+
+.gradient-bg-3 {
+  background: linear-gradient(135deg, hsl(var(--color-secondary) / 0.05) 0%, hsl(var(--color-primary) / 0.05) 100%);
+}
+
+.gradient-bg-4 {
+  background: linear-gradient(135deg, hsl(var(--color-primary) / 0.1) 0%, hsl(var(--color-accent) / 0.1) 100%);
+}
+
 /* Line clamp utilities */
 @layer utilities {
   .line-clamp-1 {
@@ -133,4 +211,22 @@ body {
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 3;
   }
+}
+
+/* Custom scrollbar for webkit browsers */
+.scroll-container-full-page::-webkit-scrollbar {
+  width: 6px;
+}
+
+.scroll-container-full-page::-webkit-scrollbar-track {
+  background: hsl(var(--color-muted));
+}
+
+.scroll-container-full-page::-webkit-scrollbar-thumb {
+  background: hsl(var(--color-primary) / 0.3);
+  border-radius: 3px;
+}
+
+.scroll-container-full-page::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--color-primary) / 0.5);
 }

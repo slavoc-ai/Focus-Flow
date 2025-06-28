@@ -11,7 +11,7 @@ interface FilePreviewItemProps {
 }
 
 const getFileIcon = (mimeType: string) => {
-  const iconClass = "w-6 h-6 text-primary";
+  const iconClass = "w-8 h-8";
   
   if (mimeType.includes('pdf')) {
     return <FileText className={cn(iconClass, "text-red-500")} />;
@@ -35,7 +35,7 @@ const getFileIcon = (mimeType: string) => {
     return <FileAudio className={cn(iconClass, "text-pink-500")} />;
   }
   
-  return <File className={iconClass} />;
+  return <File className={cn(iconClass, "text-primary")} />;
 };
 
 const formatFileSize = (bytes: number) => {
@@ -56,7 +56,7 @@ export const FilePreviewItem: React.FC<FilePreviewItemProps> = ({
   return (
     <div
       className={cn(
-        "relative flex flex-col items-center justify-start p-2 border border-border/50 rounded-lg bg-card aspect-square text-center group hover:shadow-md transition-all duration-200",
+        "relative flex flex-col items-center justify-center p-3 border border-border/50 rounded-lg bg-card aspect-square text-center group hover:shadow-md transition-all duration-200",
         className,
         progress && "ring-2 ring-primary/50 bg-primary/5",
         isProcessing && "opacity-75"
@@ -70,15 +70,15 @@ export const FilePreviewItem: React.FC<FilePreviewItemProps> = ({
             e.stopPropagation(); // Prevent event bubbling to parent dropzone
             onRemove();
           }}
-          className="absolute -top-1 -right-1 p-1 bg-destructive text-destructive-foreground rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:scale-110 z-10 shadow-sm"
+          className="absolute -top-2 -right-2 p-1.5 bg-destructive text-destructive-foreground rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:scale-110 z-10 shadow-sm"
           title="Remove file"
         >
-          <X className="w-3 h-3" />
+          <X className="w-3.5 h-3.5" />
         </button>
       )}
 
       {/* File Icon */}
-      <div className="mb-2 mt-2 flex-shrink-0">
+      <div className="mb-2 flex-shrink-0">
         {getFileIcon(file.type.toLowerCase())}
       </div>
 

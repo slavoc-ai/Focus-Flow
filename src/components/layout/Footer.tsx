@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Brain, Mail, Shield, FileText } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { Modal } from '../ui/Modal';
 import { SUPPORT_EMAIL, BUSINESS_EMAIL, RESPONSE_TIME } from '../../constants/contact';
 
@@ -19,6 +20,12 @@ export const Footer: React.FC = () => {
             </div>
             
             <div className="flex flex-col md:flex-row items-center space-y-2 md:space-y-0 md:space-x-6">
+              <Link 
+                to="/about"
+                className="text-sm text-muted-foreground hover:text-primary transition-colors"
+              >
+                About Us
+              </Link>
               <span 
                 onClick={() => setShowPrivacyModal(true)}
                 className="text-sm text-muted-foreground hover:text-primary transition-colors cursor-pointer"

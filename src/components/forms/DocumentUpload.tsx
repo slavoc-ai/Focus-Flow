@@ -1,6 +1,6 @@
 import React, { useCallback, useState } from 'react';
 import { useDropzone, FileRejection } from 'react-dropzone';
-import { Upload, X, FileText, Crown, Zap, Plus } from 'lucide-react';
+import { Upload, X, FileText, Crown, Zap, Plus, Sparkles } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useAuth } from '../../contexts/AuthContext';
 import { usePlanStore } from '../../store/planStore';
@@ -146,70 +146,79 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
       <div
         {...getRootProps()}
         className={cn(
-          "border-2 border-dashed rounded-xl p-4 transition-all duration-200 cursor-pointer",
+          "border-2 border-dashed rounded-xl transition-all duration-300 cursor-pointer relative overflow-hidden",
           "bg-card hover:bg-muted/30",
           isDragActive
-            ? "border-primary bg-primary/10 scale-[1.02]"
+            ? "border-primary bg-primary/10 scale-[1.02] shadow-lg"
             : selectedFiles.length > 0
               ? "border-primary/50 bg-primary/5"
               : "border-border hover:border-primary/50",
           isProcessing && "opacity-50 cursor-not-allowed",
-          selectedFiles.length > 0 ? "min-h-[200px]" : "min-h-[150px]"
+          selectedFiles.length > 0 ? "min-h-[240px] p-6" : "min-h-[180px] p-8"
         )}
       >
         <input {...getInputProps()} />
         
         {selectedFiles.length === 0 ? (
           /* Empty State */
-          <div className="flex flex-col items-center text-center w-full py-8">
+          <div className="flex flex-col items-center text-center w-full">
             <div className={cn(
-              "p-4 rounded-full mb-4 transition-all duration-200",
+              "p-6 rounded-full mb-6 transition-all duration-300",
               isDragActive ? "bg-primary/20 scale-110" : "bg-muted"
             )}>
               <Upload className={cn(
-                "w-8 h-8 transition-colors duration-200",
+                "w-12 h-12 transition-colors duration-300",
                 isDragActive ? "text-primary" : "text-muted-foreground"
               )} />
             </div>
-            <p className="text-lg font-medium text-card-foreground mb-2">
+            <h3 className="text-xl font-semibold text-card-foreground mb-2">
               {isDragActive 
                 ? "Drop your documents here..." 
                 : "Drag & drop documents here"
               }
-            </p>
-            <p className="text-sm text-muted-foreground mb-4">
+            </h3>
+            <p className="text-muted-foreground mb-6">
               or click to browse your files
             </p>
             <div className="flex flex-wrap justify-center gap-2 text-xs text-muted-foreground">
-              <span className="px-2 py-1 bg-muted rounded-full">PDF</span>
-              <span className="px-2 py-1 bg-muted rounded-full">TXT</span>
-              <span className="px-2 py-1 bg-muted rounded-full">PNG</span>
-              <span className="px-2 py-1 bg-muted rounded-full">JPG</span>
-              <span className="px-2 py-1 bg-muted rounded-full">WEBP</span>
-              <span className="px-2 py-1 bg-muted rounded-full">MP3</span>
-              <span className="px-2 py-1 bg-muted rounded-full">MP4</span>
+              <span className="px-3 py-1 bg-muted rounded-full">PDF</span>
+              <span className="px-3 py-1 bg-muted rounded-full">TXT</span>
+              <span className="px-3 py-1 bg-muted rounded-full">PNG</span>
+              <span className="px-3 py-1 bg-muted rounded-full">JPG</span>
+              <span className="px-3 py-1 bg-muted rounded-full">WEBP</span>
+              <span className="px-3 py-1 bg-muted rounded-full">MP3</span>
+              <span className="px-3 py-1 bg-muted rounded-full">MP4</span>
             </div>
           </div>
         ) : (
           /* Live Preview State */
           <div className="w-full">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center space-x-2">
-                <FileText className="w-5 h-5 text-primary" />
-                <h4 className="font-medium text-card-foreground">
-                  Selected Documents
-                </h4>
-                <span className="text-sm text-muted-foreground">
-                  ({selectedFiles.length}/{MAX_FILE_COUNT})
-                </span>
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center space-x-3">
+                <div className="p-2 bg-primary/10 rounded-lg">
+                  <FileText className="w-6 h-6 text-primary" />
+                </div>
+                <div>
+                  <h4 className="font-semibold text-card-foreground">
+                    Selected Documents
+                  </h4>
+                  <p className="text-sm text-muted-foreground">
+                    {selectedFiles.length}/{MAX_FILE_COUNT} files • {getTotalSelectedSize()}
+                  </p>
+                </div>
               </div>
-              <div className="text-sm text-muted-foreground">
-                {getTotalSelectedSize()}
-              </div>
+              
+              {isPremium && (
+                <div className="flex items-center space-x-1 px-3 py-1 bg-gradient-to-r from-yellow-50 to-orange-50 dark:from-yellow-900/20 dark:to-orange-900/20 border border-yellow-200 dark:border-yellow-800 rounded-full">
+                  <Crown className="w-4 h-4 text-yellow-600" />
+                  <Zap className="w-3 h-3 text-yellow-600" />
+                  <span className="text-xs font-medium text-yellow-800 dark:text-yellow-200">Premium</span>
+                </div>
+              )}
             </div>
             
             {/* File Preview Grid */}
-            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3 mb-4 max-h-40 overflow-y-auto p-1">
+            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3 mb-6 max-h-48 overflow-y-auto p-1">
               {selectedFiles.map((file, index) => (
                 <FilePreviewItem 
                   key={`${file.name}-${index}-${file.lastModified}`}
@@ -222,17 +231,20 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
               
               {/* Add More Files Button */}
               {selectedFiles.length < MAX_FILE_COUNT && (
-                <div className="flex flex-col items-center justify-center p-2 border-2 border-dashed border-border/50 rounded-lg bg-muted/30 aspect-square text-center hover:border-primary/50 hover:bg-primary/5 transition-all duration-200 cursor-pointer">
-                  <Plus className="w-6 h-6 text-muted-foreground mb-1" />
-                  <p className="text-xs text-muted-foreground">Add more</p>
+                <div className="flex flex-col items-center justify-center p-3 border-2 border-dashed border-border/50 rounded-lg bg-muted/30 aspect-square text-center hover:border-primary/50 hover:bg-primary/5 transition-all duration-200 cursor-pointer group">
+                  <Plus className="w-6 h-6 text-muted-foreground group-hover:text-primary transition-colors" />
+                  <p className="text-xs text-muted-foreground group-hover:text-primary transition-colors mt-1">Add more</p>
                 </div>
               )}
             </div>
             
             <div className="flex items-center justify-center">
-              <p className="text-xs text-primary font-medium bg-primary/10 px-3 py-1 rounded-full">
-                {isDragActive ? "Drop to add more files" : "Drag more files or click to change selection"}
-              </p>
+              <div className="flex items-center space-x-2 px-4 py-2 bg-primary/10 rounded-full">
+                <Sparkles className="w-4 h-4 text-primary" />
+                <p className="text-sm font-medium text-primary">
+                  {isDragActive ? "Drop to add more files" : "Drag more files or click to change selection"}
+                </p>
+              </div>
             </div>
           </div>
         )}

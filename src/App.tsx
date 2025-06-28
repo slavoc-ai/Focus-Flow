@@ -17,6 +17,7 @@ import SettingsPage from './pages/SettingsPage';
 import NotFoundPage from './pages/NotFoundPage';
 import AuthCallbackPage from './pages/AuthCallbackPage.tsx';
 import PlanReviewPage from './pages/PlanReviewPage';
+import AboutPage from './pages/AboutPage';
 
 // Full screen loading component
 const FullScreenSpinner: React.FC = () => (
@@ -62,6 +63,7 @@ const AppRoutes: React.FC = () => {
           <Route index element={<HomePage />} />
           <Route path="login" element={<LoginPage />} />
           <Route path="signup" element={<SignUpPage />} />
+          <Route path="about" element={<AboutPage />} />
           <Route path="auth/callback" element={<AuthCallbackPage />} />
           
           {/* These pages are available to both anonymous and authenticated users */}
