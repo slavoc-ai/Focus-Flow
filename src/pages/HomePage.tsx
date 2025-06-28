@@ -197,7 +197,7 @@ const HomePage: React.FC = () => {
 
   // Show scrolling wizard interface
   return (
-    <div className="absolute inset-0 top-16 bottom-[57px] bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
+    <div className="fixed inset-0 top-[64px] bottom-[57px] bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 z-0">
       <div className="scroll-container-full-page">
         {/* Section 1: Main Goal */}
         <section id="step-1-goal" className="scroll-section-full-page">

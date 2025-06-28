@@ -118,13 +118,13 @@ body {
 .scroll-container-full-page {
   scroll-snap-type: y mandatory;
   overflow-y: scroll;
-  height: calc(100vh - var(--navbar-height));
+  height: calc(100vh - var(--navbar-height) - 57px); /* Adjusted for navbar and footer */
   scroll-behavior: smooth;
 }
 
 .scroll-section-full-page {
   scroll-snap-align: start;
-  height: calc(100vh - var(--navbar-height));
+  height: calc(100vh - var(--navbar-height) - 57px); /* Adjusted for navbar and footer */
   display: flex;
   flex-direction: column;
   justify-content: center;
