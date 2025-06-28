@@ -1,6 +1,6 @@
 import React, { useCallback, useState } from 'react';
 import { useDropzone, FileRejection } from 'react-dropzone';
-import { Upload, X, FileText, Crown, Zap, Plus, Sparkles } from 'lucide-react';
+import { Upload, X, FileText, Crown, Zap, Plus, Sparkles, Info } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useAuth } from '../../contexts/AuthContext';
 import { usePlanStore } from '../../store/planStore';
@@ -160,7 +160,7 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
         <input {...getInputProps()} />
         
         {selectedFiles.length === 0 ? (
-          /* Empty State */
+          /* Empty State with Integrated Limits */
           <div className="flex flex-col items-center text-center w-full">
             <div className={cn(
               "p-6 rounded-full mb-6 transition-all duration-300",
@@ -177,10 +177,12 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
                 : "Drag & drop documents here"
               }
             </h3>
-            <p className="text-muted-foreground mb-6">
+            <p className="text-muted-foreground mb-4">
               or click to browse your files
             </p>
-            <div className="flex flex-wrap justify-center gap-2 text-xs text-muted-foreground">
+            
+            {/* File Type Indicators */}
+            <div className="flex flex-wrap justify-center gap-2 text-xs text-muted-foreground mb-6">
               <span className="px-3 py-1 bg-muted rounded-full">PDF</span>
               <span className="px-3 py-1 bg-muted rounded-full">TXT</span>
               <span className="px-3 py-1 bg-muted rounded-full">PNG</span>
@@ -189,6 +191,43 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
               <span className="px-3 py-1 bg-muted rounded-full">MP3</span>
               <span className="px-3 py-1 bg-muted rounded-full">MP4</span>
             </div>
+            
+            {/* Integrated Upload Limits */}
+            <div className={cn(
+              "flex items-center justify-center gap-4 text-xs px-4 py-2 rounded-lg",
+              isPremium 
+                ? "bg-gradient-to-r from-yellow-50/50 to-orange-50/50 border border-yellow-200/50 dark:from-yellow-900/10 dark:to-orange-900/10 dark:border-yellow-800/50"
+                : "bg-muted/70 border border-border/50"
+            )}>
+              <div className="flex items-center">
+                <FileText className="w-3.5 h-3.5 mr-1.5 text-muted-foreground" />
+                <span className={isPremium ? "text-yellow-700 dark:text-yellow-300" : "text-muted-foreground"}>
+                  Max {MAX_FILE_COUNT} files
+                </span>
+              </div>
+              <div className="flex items-center">
+                <Info className="w-3.5 h-3.5 mr-1.5 text-muted-foreground" />
+                <span className={isPremium ? "text-yellow-700 dark:text-yellow-300" : "text-muted-foreground"}>
+                  Up to {formatFileSize(MAX_INDIVIDUAL_SIZE_BYTES)}/file
+                </span>
+              </div>
+              {isPremium && (
+                <div className="flex items-center">
+                  <Crown className="w-3.5 h-3.5 mr-1 text-yellow-600" />
+                  <Zap className="w-3 h-3 mr-1 text-yellow-600" />
+                  <span className="text-yellow-700 dark:text-yellow-300">Premium</span>
+                </div>
+              )}
+            </div>
+            
+            {!isPremium && (
+              <div className="mt-3 text-xs">
+                <span className="text-primary font-medium flex items-center justify-center">
+                  <Sparkles className="w-3 h-3 mr-1" />
+                  <span>Upgrade to Premium for larger files and more uploads</span>
+                </span>
+              </div>
+            )}
           </div>
         ) : (
           /* Live Preview State */
@@ -238,12 +277,30 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
               )}
             </div>
             
-            <div className="flex items-center justify-center">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
               <div className="flex items-center space-x-2 px-4 py-2 bg-primary/10 rounded-full">
                 <Sparkles className="w-4 h-4 text-primary" />
                 <p className="text-sm font-medium text-primary">
                   {isDragActive ? "Drop to add more files" : "Drag more files or click to change selection"}
                 </p>
+              </div>
+              
+              {/* Inline Limits Display */}
+              <div className={cn(
+                "flex items-center gap-2 text-xs px-3 py-1.5 rounded-full",
+                isPremium 
+                  ? "bg-gradient-to-r from-yellow-50 to-orange-50 border border-yellow-200 dark:from-yellow-900/20 dark:to-orange-900/20 dark:border-yellow-800"
+                  : "bg-muted border border-border"
+              )}>
+                <span className={isPremium ? "text-yellow-700 dark:text-yellow-300" : "text-muted-foreground"}>
+                  {MAX_FILE_COUNT - selectedFiles.length} files remaining
+                </span>
+                {isPremium && (
+                  <>
+                    <Crown className="w-3 h-3 text-yellow-600" />
+                    <Zap className="w-2.5 h-2.5 text-yellow-600" />
+                  </>
+                )}
               </div>
             </div>
           </div>
@@ -264,7 +321,7 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
         </div>
       )}
 
-      {/* Upload Limits Info */}
+      {/* Detailed Upload Limits Info */}
       <div className={cn(
         "p-4 rounded-lg border text-sm",
         isPremium 
