@@ -12,6 +12,7 @@ import { Toast } from '../components/ui/Toast';
 import { List, X, Save, Sparkles } from 'lucide-react';
 import { sessionService, SessionDetails, SubTaskUpdate } from '../services/sessionService';
 import { planService } from '../services/planService';
+import { projectService, NewSubTaskForCreation } from '../services/projectService';
 
 interface SubTask {
   id: string;
@@ -325,19 +326,79 @@ const DeepWorkPage: React.FC = () => {
       return { success: false, error: 'Project not ready for saving' };
     }
 
-    // Check if all sub-tasks have valid UUIDs
-    const hasInvalidIds = subTasks.some(task => !task.id || task.id.startsWith('task-'));
-    if (hasInvalidIds) {
-      console.warn('⚠️ Cannot save session: sub-tasks still have temporary IDs');
-      return { success: false, error: 'Sub-tasks not properly initialized' };
-    }
-
     try {
       setIsSaving(true);
       setSaveError(null);
 
+      // Identify tasks with temporary IDs (added by Co-pilot)
+      const tasksToCreate = subTasks.filter(task => task.id.startsWith('task-') || task.id.startsWith('temp-'));
+      const existingTasks = subTasks.filter(task => !task.id.startsWith('task-') && !task.id.startsWith('temp-'));
+
+      console.log('🔍 Checking for tasks to create:', {
+        tasksToCreateCount: tasksToCreate.length,
+        existingTasksCount: existingTasks.length,
+        totalTasks: subTasks.length
+      });
+
+      // If there are new tasks, create them in the database first
+      let finalSubTasks = [...subTasks];
+      if (tasksToCreate.length > 0) {
+        console.log('🚀 Creating new tasks in database:', tasksToCreate.length);
+
+        // Prepare tasks for creation
+        const newTasksForCreation: NewSubTaskForCreation[] = tasksToCreate.map(task => ({
+          tempId: task.id,
+          title: task.title,
+          action: task.action,
+          details: task.details,
+          description: task.sub_task_description || task.details,
+          estimated_minutes_per_sub_task: task.estimated_minutes_per_sub_task,
+          is_completed: task.isCompleted
+        }));
+
+        // Create the tasks in the database
+        const { createdTasks, tempIdMap, success, error } = await projectService.addSubTasksToProject(
+          projectId,
+          user.id,
+          newTasksForCreation
+        );
+
+        if (!success || !createdTasks) {
+          throw new Error(error || 'Failed to create new tasks');
+        }
+
+        console.log('✅ New tasks created successfully:', {
+          count: createdTasks.length,
+          tempIdMap
+        });
+
+        // Update the local state with the new database IDs
+        finalSubTasks = subTasks.map(task => {
+          // If this is a temporary task, replace it with the database version
+          if (task.id.startsWith('task-') || task.id.startsWith('temp-')) {
+            const newId = tempIdMap[task.id];
+            if (newId) {
+              const dbTask = createdTasks.find(t => t.id === newId);
+              if (dbTask) {
+                return {
+                  ...task,
+                  id: dbTask.id
+                };
+              }
+            }
+          }
+          return task;
+        });
+
+        // Update the component state
+        setSubTasks(finalSubTasks);
+        setSessionData(prev => ({ ...prev, subTasks: finalSubTasks }));
+
+        console.log('✅ Local state updated with database IDs');
+      }
+
       // Prepare sub-task updates with ALL editable fields
-      const subTaskUpdates: SubTaskUpdate[] = subTasks.map(task => ({
+      const subTaskUpdates: SubTaskUpdate[] = finalSubTasks.map(task => ({
         id: task.id,
         title: task.title,
         action: task.action,

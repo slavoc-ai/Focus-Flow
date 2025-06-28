@@ -13,6 +13,10 @@ export interface SessionDetails {
 export interface SubTaskUpdate {
   id: string;
   is_completed: boolean;
+  title?: string;
+  action?: string;
+  details?: string;
+  estimated_minutes_per_sub_task?: number | null;
 }
 
 export interface WorkSession {

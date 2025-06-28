@@ -178,7 +178,7 @@ Analyze the user's command and generate a JSON response with modifications. You 
      "operation": "add",
      "afterTaskId": "task-id-to-insert-after", // or null for beginning
      "newTask": {
-       "id": "temp-new-" + Date.now(),
+       "id": "task-${crypto.randomUUID()}", // Use consistent ID format
        "title": "New Task Title",
        "action": "Immediate action to take",
        "details": "Detailed explanation",

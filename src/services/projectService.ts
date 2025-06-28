@@ -21,6 +21,16 @@ export interface SubTaskData {
   order_index: number;
 }
 
+export interface NewSubTaskForCreation {
+  title: string;
+  action: string;
+  details: string;
+  description?: string;
+  estimated_minutes_per_sub_task?: number;
+  is_completed: boolean;
+  tempId: string; // Store the temporary ID for mapping
+}
+
 export interface Project {
   id: string;
   user_id: string;
@@ -492,6 +502,110 @@ class ProjectService {
   }
 
   /**
+   * Add new sub-tasks to a project
+   * This is used for tasks created by Co-pilot during a session
+   */
+  async addSubTasksToProject(
+    projectId: string,
+    userId: string,
+    newTasks: NewSubTaskForCreation[]
+  ): Promise<{ createdTasks: SubTask[]; tempIdMap: Record<string, string>; success: boolean; error?: string }> {
+    try {
+      if (!newTasks || newTasks.length === 0) {
+        return { createdTasks: [], tempIdMap: {}, success: true };
+      }
+
+      console.log('🚀 Adding new sub-tasks to project:', {
+        projectId,
+        userId: userId.substring(0, 8) + '...',
+        tasksCount: newTasks.length
+      });
+
+      // Get the current highest order_index for the project
+      const { data: existingTasks, error: fetchError } = await supabase
+        .from('sub_tasks')
+        .select('order_index')
+        .eq('project_id', projectId)
+        .order('order_index', { ascending: false })
+        .limit(1);
+
+      if (fetchError) {
+        console.error('❌ Error fetching existing tasks:', fetchError);
+        throw new Error(`Failed to fetch existing tasks: ${fetchError.message}`);
+      }
+
+      // Start order_index from the highest existing + 1, or 0 if no existing tasks
+      let startOrderIndex = 0;
+      if (existingTasks && existingTasks.length > 0) {
+        startOrderIndex = existingTasks[0].order_index + 1;
+      }
+
+      // Prepare tasks for insertion with validated data
+      const tasksToInsert = newTasks.map((task, index) => {
+        const validatedMinutes = this.validateEstimatedMinutes(task.estimated_minutes_per_sub_task);
+        
+        return {
+          project_id: projectId,
+          user_id: userId,
+          title: task.title || '',
+          action: task.action || '',
+          details: task.details || '',
+          description: task.description || task.details || task.action || '',
+          estimated_minutes_per_sub_task: validatedMinutes,
+          is_completed: task.is_completed || false,
+          order_index: startOrderIndex + index
+        };
+      });
+
+      console.log('📤 Inserting new sub-tasks:', {
+        count: tasksToInsert.length,
+        startOrderIndex
+      });
+
+      // Insert the new tasks
+      const { data: createdTasks, error: insertError } = await supabase
+        .from('sub_tasks')
+        .insert(tasksToInsert)
+        .select();
+
+      if (insertError) {
+        console.error('❌ Error inserting new sub-tasks:', insertError);
+        throw new Error(`Failed to insert new sub-tasks: ${insertError.message}`);
+      }
+
+      if (!createdTasks) {
+        throw new Error('No tasks were created');
+      }
+
+      console.log('✅ New sub-tasks created successfully:', {
+        count: createdTasks.length
+      });
+
+      // Create a mapping from temporary IDs to real database IDs
+      const tempIdMap: Record<string, string> = {};
+      createdTasks.forEach((dbTask, index) => {
+        const originalTask = newTasks[index];
+        tempIdMap[originalTask.tempId] = dbTask.id;
+      });
+
+      return {
+        createdTasks,
+        tempIdMap,
+        success: true
+      };
+
+    } catch (error) {
+      console.error('❌ Error in addSubTasksToProject:', error);
+      return {
+        createdTasks: [],
+        tempIdMap: {},
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error occurred'
+      };
+    }
+  }
+
+  /**
    * Update sub-task completion status
    */
   async updateSubTaskCompletion(
@@ -530,26 +644,43 @@ class ProjectService {
   }
 
   /**
-   * Batch update sub-task completion statuses
+   * Batch update sub-task completion statuses and other fields
    */
   async batchUpdateSubTaskCompletion(
-    updates: { id: string; is_completed: boolean }[],
+    updates: { 
+      id: string; 
+      is_completed: boolean;
+      title?: string;
+      action?: string;
+      details?: string;
+      estimated_minutes_per_sub_task?: number | null;
+    }[],
     userId: string
   ): Promise<{ success: boolean; error?: string }> {
     try {
-      console.log('📝 Batch updating sub-task completion:', updates.length);
+      console.log('📝 Batch updating sub-tasks:', updates.length);
 
       // Use Promise.all for concurrent updates
-      const updatePromises = updates.map(update =>
-        supabase
+      const updatePromises = updates.map(update => {
+        const updateData: any = {
+          is_completed: update.is_completed,
+          updated_at: new Date().toISOString()
+        };
+
+        // Add optional fields if provided
+        if (update.title !== undefined) updateData.title = update.title;
+        if (update.action !== undefined) updateData.action = update.action;
+        if (update.details !== undefined) updateData.details = update.details;
+        if (update.estimated_minutes_per_sub_task !== undefined) {
+          updateData.estimated_minutes_per_sub_task = this.validateEstimatedMinutes(update.estimated_minutes_per_sub_task);
+        }
+
+        return supabase
           .from('sub_tasks')
-          .update({
-            is_completed: update.is_completed,
-            updated_at: new Date().toISOString()
-          })
+          .update(updateData)
           .eq('id', update.id)
-          .eq('user_id', userId)
-      );
+          .eq('user_id', userId);
+      });
 
       const results = await Promise.all(updatePromises);
 
