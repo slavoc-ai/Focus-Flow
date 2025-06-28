@@ -68,8 +68,11 @@ const HomePage: React.FC = () => {
   useEffect(() => {
     const handleScroll = () => {
       const sections = document.querySelectorAll('.scroll-section-full-page');
-      const scrollTop = document.querySelector('.scroll-container-full-page')?.scrollTop || 0;
-      const sectionHeight = window.innerHeight - 64; // navbar height
+      const scrollContainer = document.querySelector('.scroll-container-full-page');
+      if (!scrollContainer) return;
+      
+      const scrollTop = scrollContainer.scrollTop;
+      const sectionHeight = scrollContainer.clientHeight;
       
       const newSection = Math.round(scrollTop / sectionHeight);
       setCurrentSection(Math.max(0, Math.min(newSection, sections.length - 1)));
@@ -103,8 +106,10 @@ const HomePage: React.FC = () => {
 
   const scrollToSection = (sectionIndex: number) => {
     const scrollContainer = document.querySelector('.scroll-container-full-page');
-    const sectionHeight = window.innerHeight - 64; // navbar height
-    scrollContainer?.scrollTo({
+    if (!scrollContainer) return;
+    
+    const sectionHeight = scrollContainer.clientHeight;
+    scrollContainer.scrollTo({
       top: sectionIndex * sectionHeight,
       behavior: 'smooth'
     });
@@ -197,7 +202,7 @@ const HomePage: React.FC = () => {
 
   // Show scrolling wizard interface
   return (
-    <div className="fixed inset-0 top-[64px] bottom-[57px] bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 z-0">
+    <div className="bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 min-h-screen">
       <div className="scroll-container-full-page">
         {/* Section 1: Main Goal */}
         <section id="step-1-goal" className="scroll-section-full-page">

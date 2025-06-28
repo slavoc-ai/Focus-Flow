@@ -18,7 +18,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, variant = 'def
     <div className="flex flex-col min-h-screen bg-background">
       <Navbar />
       <main className={cn(
-        "flex-grow",
+        "flex-grow relative",
         effectiveVariant === 'default' && "container mx-auto px-4 py-8"
       )}>
         {children || <Outlet />}

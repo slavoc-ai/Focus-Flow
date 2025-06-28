@@ -56,7 +56,8 @@
     --color-ring: 221 83% 53%;           /* #2563EB, Focus Ring Blue (Blue-600) */
 
     /* -- Navigation Bar Height -- */
-    --navbar-height: 4rem; /* 64px */
+    --navbar-height: 64px; /* 4rem */
+    --footer-height: 57px; /* Actual footer height */
   }
 
   .dark {
@@ -117,14 +118,16 @@ body {
 /* Full-Page Scrolling Wizard Styles */
 .scroll-container-full-page {
   scroll-snap-type: y mandatory;
-  overflow-y: scroll;
-  height: calc(100vh - var(--navbar-height) - 57px); /* Adjusted for navbar and footer */
+  overflow-y: auto;
+  height: calc(100vh - var(--navbar-height) - var(--footer-height));
   scroll-behavior: smooth;
+  position: relative;
 }
 
 .scroll-section-full-page {
   scroll-snap-align: start;
-  height: calc(100vh - var(--navbar-height) - 57px); /* Adjusted for navbar and footer */
+  min-height: calc(100vh - var(--navbar-height) - var(--footer-height));
+  height: calc(100vh - var(--navbar-height) - var(--footer-height));
   display: flex;
   flex-direction: column;
   justify-content: center;
